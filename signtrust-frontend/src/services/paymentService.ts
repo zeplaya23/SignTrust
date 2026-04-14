@@ -26,7 +26,7 @@ export interface PaymentVerifyResponse {
 
 export const paymentService = {
   initialize: (data: PaymentInitRequest) =>
-    api.post<PaymentInitResponse>('/api/payments/initialize', data).then((r) => r.data),
+    api.post<PaymentInitResponse>('/payments/initialize', data).then((r) => r.data),
 
   verify: (reference: string) =>
     api.get<PaymentVerifyResponse>(`/api/payments/verify/${reference}`).then((r) => r.data),

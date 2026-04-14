@@ -30,14 +30,14 @@ export interface OtpResponse {
 
 export const authService = {
   register: (data: RegisterRequest) =>
-    api.post<RegisterResponse>('/api/auth/register', data).then((r) => r.data),
+    api.post<RegisterResponse>('/auth/register', data).then((r) => r.data),
 
   login: (data: LoginRequest) =>
-    api.post<LoginResponse>('/api/auth/login', data).then((r) => r.data),
+    api.post<LoginResponse>('/auth/login', data).then((r) => r.data),
 
   sendOtp: (email: string) =>
-    api.post<OtpResponse>('/api/auth/otp/send', { email }).then((r) => r.data),
+    api.post<OtpResponse>('/auth/otp/send', { email }).then((r) => r.data),
 
   verifyOtp: (email: string, code: string) =>
-    api.post<OtpResponse>('/api/auth/otp/verify', { email, code }).then((r) => r.data),
+    api.post<OtpResponse>('/auth/otp/verify', { email, code }).then((r) => r.data),
 };
