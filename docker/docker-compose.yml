@@ -8,8 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: signtrust-app
     restart: unless-stopped
-    ports:
-      - "0.0.0.0:8380:8080"
+    # No port exposed — only accessible via signtrust-web (Nginx) on trust-net
     environment:
       # ── Database ──
       QUARKUS_DATASOURCE_DB_KIND: mysql
@@ -118,8 +117,8 @@ services:
     container_name: signtrust-mailpit
     restart: unless-stopped
     ports:
-      - "0.0.0.0:1125:1025"   # SMTP
-      - "0.0.0.0:8225:8025"   # Web UI
+      - "127.0.0.1:1125:1025"   # SMTP (localhost only)
+      - "127.0.0.1:8225:8025"   # Web UI (localhost only)
     networks:
       - trust-net
 
