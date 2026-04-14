@@ -113,6 +113,12 @@
             <artifactId>quarkus-mailer</artifactId>
         </dependency>
 
+        <!-- REST Client Jackson (for external API calls) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client-jackson</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>io.quarkus</groupId>

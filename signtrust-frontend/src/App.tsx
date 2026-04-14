@@ -8,6 +8,18 @@ import VerifyOtp from './pages/subscribe/VerifyOtp';
 import Payment from './pages/subscribe/Payment';
 import PaymentSuccess from './pages/subscribe/PaymentSuccess';
 import Renewal from './pages/Renewal';
+import AppLayout from './components/layout/AppLayout';
+import Dashboard from './pages/Dashboard';
+import EnvelopeList from './pages/envelopes/EnvelopeList';
+import NewEnvelope from './pages/envelopes/NewEnvelope';
+import EnvelopeDetail from './pages/envelopes/EnvelopeDetail';
+import SignView from './pages/sign/SignView';
+import SignSuccess from './pages/sign/SignSuccess';
+import Team from './pages/Team';
+import Templates from './pages/Templates';
+import Contacts from './pages/Contacts';
+import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +35,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/subscribe/plan" element={<ChoosePlan />} />
@@ -31,17 +44,23 @@ export default function App() {
           <Route path="/subscribe/payment" element={<Payment />} />
           <Route path="/subscribe/success" element={<PaymentSuccess />} />
           <Route path="/renewal" element={<Renewal />} />
-          <Route
-            path="/dashboard"
-            element={
-              <div className="min-h-screen bg-bg flex items-center justify-center">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold text-dark mb-2">Dashboard</h1>
-                  <p className="text-txt-secondary">Phase 3</p>
-                </div>
-              </div>
-            }
-          />
+
+          {/* Sign routes (no sidebar) */}
+          <Route path="/sign/:token" element={<SignView />} />
+          <Route path="/sign/success" element={<SignSuccess />} />
+
+          {/* App routes with sidebar */}
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/envelopes" element={<EnvelopeList />} />
+            <Route path="/envelopes/new" element={<NewEnvelope />} />
+            <Route path="/envelopes/:id" element={<EnvelopeDetail />} />
+            <Route path="/team" element={<Team />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="/contacts" element={<Contacts />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/notifications" element={<Notifications />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
