@@ -6,9 +6,6 @@ import {
   XCircle,
   RefreshCw,
   FileText,
-  CheckCircle2,
-  Clock,
-  Circle,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Card from '../../components/ui/Card';
@@ -69,10 +66,10 @@ function formatDateTime(iso: string) {
 }
 
 export default function EnvelopeDetail() {
-  const { id } = useParams();
+  const { id: _id } = useParams();
   const navigate = useNavigate();
   const [activeDoc, setActiveDoc] = useState(0);
-  const envelope = mockDetail; // Would fetch by id
+  const envelope = mockDetail; // Would fetch by _id
 
   return (
     <div>

@@ -44,7 +44,7 @@ const mockSignInfo: SignEnvelopeInfo = {
 type SignTab = 'draw' | 'text' | 'saved';
 
 export default function SignView() {
-  const { token } = useParams();
+  const { token: _token } = useParams();
   const navigate = useNavigate();
   const [activeDoc, setActiveDoc] = useState(0);
   const [activeTab, setActiveTab] = useState<SignTab>('draw');
