@@ -9,20 +9,48 @@ services:
     container_name: signtrust-app
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8180:8080"
+      - "0.0.0.0:8380:8080"
     environment:
       # ── Database ──
       QUARKUS_DATASOURCE_DB_KIND: mysql
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mysql://trust-mysql:3306/${SIGNTRUST_DB_NAME}?characterEncoding=utf8mb4&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mysql://trust-mysql:3306/${SIGNTRUST_DB_NAME}?characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       QUARKUS_DATASOURCE_USERNAME: ${SIGNTRUST_DB_USER}
       QUARKUS_DATASOURCE_PASSWORD: ${SIGNTRUST_DB_PASSWORD}
       QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
 
       # ── Keycloak / OIDC ──
       QUARKUS_OIDC_AUTH_SERVER_URL: ${KEYCLOAK_URL}/realms/signtrust
-      QUARKUS_OIDC_CLIENT_ID: signtrust-app
-      QUARKUS_OIDC_CREDENTIALS_SECRET: ""
-      QUARKUS_OIDC_APPLICATION_TYPE: web-app
+      QUARKUS_OIDC_CLIENT_ID: signtrust-api
+      QUARKUS_OIDC_CREDENTIALS_SECRET: ${OIDC_CLIENT_SECRET:-change-me-secret}
+      QUARKUS_OIDC_TLS_VERIFICATION: none
+      QUARKUS_OIDC_TOKEN_ISSUER: any
+      QUARKUS_OIDC_DISCOVERY_ENABLED: "false"
+      QUARKUS_OIDC_JWKS_PATH: protocol/openid-connect/certs
+      QUARKUS_HTTP_AUTH_PROACTIVE: "false"
+
+      # ── Keycloak Admin Client ──
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_SERVER_URL: ${KEYCLOAK_URL}
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_REALM: master
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_CLIENT_ID: admin-cli
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ChangeMeKcAdminP@ss2024}
+      QUARKUS_KEYCLOAK_ADMIN_CLIENT_GRANT_TYPE: PASSWORD
+
+      # ── SignTrust Keycloak Config ──
+      SIGNTRUST_KEYCLOAK_SERVER_URL: ${KEYCLOAK_URL}
+      SIGNTRUST_KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      SIGNTRUST_KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-ChangeMeKcAdminP@ss2024}
+
+      # ── Auth Permissions (public endpoints) ──
+      QUARKUS_HTTP_AUTH_PERMISSION_PUBLIC_PATHS: /api/auth/*,/api/payments/*,/api/status,/q/*
+      QUARKUS_HTTP_AUTH_PERMISSION_PUBLIC_POLICY: permit
+
+      # ── CORS ──
+      QUARKUS_HTTP_CORS: "true"
+      QUARKUS_HTTP_CORS_ORIGINS: http://localhost:5173,http://localhost:5175,http://158.220.112.175:5175
+      QUARKUS_HTTP_CORS_METHODS: GET,POST,PUT,DELETE,PATCH,OPTIONS
+      QUARKUS_HTTP_CORS_HEADERS: accept,authorization,content-type,x-tenant-id
+      QUARKUS_HTTP_CORS_EXPOSED_HEADERS: location
 
       # ── EJBCA PKI ──
       SIGNTRUST_EJBCA_URL: ${EJBCA_URL}
@@ -74,8 +102,8 @@ services:
     container_name: signtrust-mailpit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1125:1025"   # SMTP
-      - "127.0.0.1:8225:8025"   # Web UI
+      - "0.0.0.0:1125:1025"   # SMTP
+      - "0.0.0.0:8225:8025"   # Web UI
     networks:
       - trust-net
 

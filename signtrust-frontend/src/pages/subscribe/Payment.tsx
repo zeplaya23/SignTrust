@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import TopBar from '../../components/layout/TopBar';
@@ -8,6 +9,7 @@ import PlanSummary from '../../components/subscription/PlanSummary';
 import Field from '../../components/ui/Field';
 import Button from '../../components/ui/Button';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
+import { paymentService } from '../../services/paymentService';
 
 export default function Payment() {
   const navigate = useNavigate();
@@ -17,11 +19,35 @@ export default function Payment() {
     setPaymentMethod,
     mobileOperator,
     setMobileOperator,
+    userId,
+    setPaymentReference,
   } = useSubscriptionStore();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePay = () => {
-    // TODO: integrate Paystack
-    navigate('/subscribe/success');
+  const handlePay = async () => {
+    if (!userId || !selectedPlan) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const resp = await paymentService.initialize({
+        userId,
+        planId: selectedPlan.id,
+        paymentMethod,
+        mobileOperator,
+        amount: selectedPlan.price,
+      });
+
+      setPaymentReference(resp.reference);
+      navigate('/subscribe/success');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Erreur lors du paiement';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +58,12 @@ export default function Payment() {
         <div className="mb-6">
           <SecurityBadge />
         </div>
+
+        {error && (
+          <div className="bg-danger-light text-danger rounded-xl px-4 py-3 mb-6 text-sm font-medium">
+            {error}
+          </div>
+        )}
 
         <div className="mb-6">
           <PaymentMethodTabs selected={paymentMethod} onSelect={setPaymentMethod} />
@@ -89,8 +121,8 @@ export default function Payment() {
           >
             Retour
           </Link>
-          <Button variant="success" icon={Lock} onClick={handlePay}>
-            Payer avec Paystack
+          <Button variant="success" icon={Lock} onClick={handlePay} disabled={loading}>
+            {loading ? 'Traitement...' : 'Payer avec Paystack'}
           </Button>
         </div>
       </div>

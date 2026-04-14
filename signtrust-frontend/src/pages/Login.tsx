@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -6,6 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Logo from '../components/ui/Logo';
 import Field from '../components/ui/Field';
 import Button from '../components/ui/Button';
+import { useAuthStore } from '../stores/useAuthStore';
+import { authService } from '../services/authService';
+import type { SubscriptionStatus } from '../types/subscription';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -15,6 +19,11 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { setAuth } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -23,16 +32,38 @@ export default function Login() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = (data: LoginFormData) => {
-    console.log('Login:', data);
-    // TODO: integrate auth API
+  const onSubmit = async (data: LoginFormData) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const resp = await authService.login(data);
+      setAuth(
+        resp.accessToken,
+        {
+          id: resp.user.id,
+          email: resp.user.email,
+          firstName: resp.user.firstName,
+          lastName: resp.user.lastName,
+          phone: resp.user.phone,
+          role: resp.user.role,
+          tenantId: resp.user.tenantId,
+        },
+        (resp.user.subscriptionStatus || 'NONE') as SubscriptionStatus
+      );
+      navigate('/dashboard');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Email ou mot de passe incorrect';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex">
       {/* Left Panel */}
       <div className="hidden md:flex w-1/2 bg-dark relative overflow-hidden items-center justify-center">
-        {/* Decorative gradient circles */}
         <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-accent/20 blur-3xl" />
         <div className="relative z-10 text-center">
@@ -53,6 +84,12 @@ export default function Login() {
 
           <h1 className="text-2xl font-bold text-dark mb-6">Connexion</h1>
 
+          {error && (
+            <div className="bg-danger-light text-danger rounded-xl px-4 py-3 mb-4 text-sm font-medium">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
             <Field
               label="Email"
@@ -70,8 +107,8 @@ export default function Login() {
               error={errors.password?.message}
             />
 
-            <Button type="submit" variant="primary" className="w-full mt-2">
-              Se connecter
+            <Button type="submit" variant="primary" className="w-full mt-2" disabled={loading}>
+              {loading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
 

@@ -21,9 +21,10 @@ export interface RegisterRequest {
   email: string;
   phone: string;
   password: string;
+  planId?: string;
 }
 
 export interface OtpVerifyRequest {
-  phone: string;
+  email: string;
   code: string;
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -7,6 +8,7 @@ import TopBar from '../../components/layout/TopBar';
 import Field from '../../components/ui/Field';
 import Button from '../../components/ui/Button';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
+import { authService } from '../../services/authService';
 
 const registerSchema = z
   .object({
@@ -35,7 +37,9 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function Register() {
   const navigate = useNavigate();
-  const { accountType, setAccountType, setRegistrationData } = useSubscriptionStore();
+  const { accountType, setAccountType, setRegistrationData, selectedPlan } = useSubscriptionStore();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
@@ -48,17 +52,44 @@ export default function Register() {
     },
   });
 
-  const onSubmit = (data: RegisterFormData) => {
+  const onSubmit = async (data: RegisterFormData) => {
+    setLoading(true);
+    setError(null);
+
     const [firstName, ...rest] = data.fullName.split(' ');
-    setRegistrationData({
+    const regData = {
       companyName: accountType === 'entreprise' ? data.companyName : undefined,
       firstName,
       lastName: rest.join(' ') || '',
       email: data.email,
       phone: data.phone,
       password: data.password,
-    });
-    navigate('/subscribe/verify');
+    };
+
+    setRegistrationData(regData);
+
+    try {
+      const resp = await authService.register({
+        accountType,
+        companyName: regData.companyName,
+        firstName: regData.firstName,
+        lastName: regData.lastName,
+        email: regData.email,
+        phone: regData.phone,
+        password: regData.password,
+        planId: selectedPlan?.id,
+      });
+
+      // Store userId for later payment
+      useSubscriptionStore.setState({ userId: resp.userId });
+
+      navigate('/subscribe/verify');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Erreur lors de l\'inscription';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,6 +100,12 @@ export default function Register() {
         <h1 className="text-2xl font-bold text-dark text-center mb-8">
           Créez votre compte
         </h1>
+
+        {error && (
+          <div className="bg-danger-light text-danger rounded-xl px-4 py-3 mb-6 text-sm font-medium">
+            {error}
+          </div>
+        )}
 
         {/* Account type toggle */}
         <div className="flex rounded-xl overflow-hidden border border-border mb-6">
@@ -172,8 +209,8 @@ export default function Register() {
             >
               Retour
             </Link>
-            <Button type="submit" variant="accent">
-              Continuer
+            <Button type="submit" variant="accent" disabled={loading}>
+              {loading ? 'Inscription...' : 'Continuer'}
             </Button>
           </div>
         </form>

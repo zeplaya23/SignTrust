@@ -18,6 +18,7 @@ interface SubscriptionState {
   paymentMethod: PaymentMethod;
   mobileOperator: MobileOperator | null;
   paymentReference: string | null;
+  userId: number | null;
   selectPlan: (plan: Plan) => void;
   setAccountType: (type: 'particulier' | 'entreprise') => void;
   setRegistrationData: (data: SubscriptionState['registrationData']) => void;
@@ -38,6 +39,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       paymentMethod: 'mobile_money',
       mobileOperator: null,
       paymentReference: null,
+      userId: null,
       selectPlan: (plan) => set({ selectedPlan: plan }),
       setAccountType: (type) => set({ accountType: type }),
       setRegistrationData: (data) => set({ registrationData: data }),
@@ -53,6 +55,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         paymentMethod: 'mobile_money',
         mobileOperator: null,
         paymentReference: null,
+        userId: null,
       }),
     }),
     {
