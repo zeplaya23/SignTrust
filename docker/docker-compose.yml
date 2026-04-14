@@ -1,0 +1,95 @@
+services:
+  # ──────────────────────────────────────────────
+  # SignTrust Quarkus Application
+  # ──────────────────────────────────────────────
+  signtrust-app:
+    build:
+      context: ../signtrust-parent/signtrust-app
+      dockerfile: Dockerfile
+    container_name: signtrust-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8180:8080"
+    environment:
+      # ── Database ──
+      QUARKUS_DATASOURCE_DB_KIND: mysql
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:mysql://trust-mysql:3306/${SIGNTRUST_DB_NAME}?characterEncoding=utf8mb4&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      QUARKUS_DATASOURCE_USERNAME: ${SIGNTRUST_DB_USER}
+      QUARKUS_DATASOURCE_PASSWORD: ${SIGNTRUST_DB_PASSWORD}
+      QUARKUS_HIBERNATE_ORM_DATABASE_GENERATION: update
+
+      # ── Keycloak / OIDC ──
+      QUARKUS_OIDC_AUTH_SERVER_URL: ${KEYCLOAK_URL}/realms/signtrust
+      QUARKUS_OIDC_CLIENT_ID: signtrust-app
+      QUARKUS_OIDC_CREDENTIALS_SECRET: ""
+      QUARKUS_OIDC_APPLICATION_TYPE: web-app
+
+      # ── EJBCA PKI ──
+      SIGNTRUST_EJBCA_URL: ${EJBCA_URL}
+
+      # ── DSS (Digital Signature Service) ──
+      SIGNTRUST_DSS_URL: ${DSS_URL}
+
+      # ── MinIO (document storage) ──
+      SIGNTRUST_MINIO_ENDPOINT: http://signtrust-minio:9000
+      SIGNTRUST_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SIGNTRUST_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SIGNTRUST_MINIO_BUCKET: signtrust-documents
+
+      # ── Mail (Mailpit for dev) ──
+      QUARKUS_MAILER_HOST: signtrust-mailpit
+      QUARKUS_MAILER_PORT: 1025
+      QUARKUS_MAILER_START_TLS: DISABLED
+      QUARKUS_MAILER_FROM: noreply@signtrust.local
+    depends_on:
+      - signtrust-minio
+      - signtrust-mailpit
+    networks:
+      - trust-net
+
+  # ──────────────────────────────────────────────
+  # MinIO — Object storage for SignTrust documents
+  # ──────────────────────────────────────────────
+  signtrust-minio:
+    image: minio/minio:latest
+    container_name: signtrust-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9100:9000"   # S3 API
+      - "127.0.0.1:9101:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - signtrust-minio-data:/data
+    networks:
+      - trust-net
+
+  # ──────────────────────────────────────────────
+  # Mailpit — Local SMTP / webmail for dev
+  # ──────────────────────────────────────────────
+  signtrust-mailpit:
+    image: axllent/mailpit:latest
+    container_name: signtrust-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1125:1025"   # SMTP
+      - "127.0.0.1:8225:8025"   # Web UI
+    networks:
+      - trust-net
+
+# ────────────────────────────────────────────────
+# Volumes
+# ────────────────────────────────────────────────
+volumes:
+  signtrust-minio-data:
+    driver: local
+
+# ────────────────────────────────────────────────
+# Networks — attach to the EXISTING trust-net
+# ────────────────────────────────────────────────
+networks:
+  trust-net:
+    external: true
+    name: maintrustplatform_trust-net

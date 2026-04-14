@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ci.cryptoneo.signtrust</groupId>
+        <artifactId>signtrust-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>signtrust-app</artifactId>
+    <packaging>jar</packaging>
+
+    <name>SignTrust — Application</name>
+    <description>Main application assembly</description>
+
+    <dependencies>
+        <!-- SignTrust modules -->
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-iam</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-hsm</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-pki</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-signature</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-storage</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-payment</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-notification</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-audit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ci.cryptoneo.signtrust</groupId>
+            <artifactId>signtrust-mod-envelope</artifactId>
+        </dependency>
+
+        <!-- Quarkus RESTEasy Reactive Jackson -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+
+        <!-- Quarkus Hibernate ORM with Panache -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+
+        <!-- Quarkus JDBC MySQL -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-mysql</artifactId>
+        </dependency>
+
+        <!-- Quarkus OIDC -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-oidc</artifactId>
+        </dependency>
+
+        <!-- Quarkus SmallRye Health -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
+
+        <!-- Quarkus SmallRye OpenAPI -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+
+        <!-- Quarkus Container Image Docker -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-container-image-docker</artifactId>
+        </dependency>
+
+        <!-- Keycloak Admin Client -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-keycloak-admin-rest-client</artifactId>
+        </dependency>
+
+        <!-- Mailer -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-mailer</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

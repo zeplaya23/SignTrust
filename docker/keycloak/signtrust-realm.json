@@ -1,0 +1,144 @@
+{
+  "id": "signtrust",
+  "realm": "signtrust",
+  "displayName": "SignTrust",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+
+  "passwordPolicy": "length(8) and upperCase(1) and digits(1)",
+
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyLookAheadWindow": 1,
+
+  "defaultRoles": ["member"],
+
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Full administrative access to SignTrust",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "manager",
+        "description": "Manage organisations, workflows and users",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "member",
+        "description": "Standard member — can view and sign documents",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "signer",
+        "description": "Authorised to apply electronic signatures",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+
+  "defaultDefaultClientScopes": [
+    "web-origins",
+    "profile",
+    "roles",
+    "email"
+  ],
+
+  "clients": [
+    {
+      "clientId": "signtrust-app",
+      "name": "SignTrust Frontend",
+      "description": "Public client for the SignTrust SPA / frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:3020/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3020",
+        "http://localhost:5173"
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "signtrust-api",
+      "name": "SignTrust API",
+      "description": "Confidential client for backend-to-backend communication",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "protocol": "openid-connect",
+      "secret": "change-me-signtrust-api-secret",
+      "redirectUris": [],
+      "webOrigins": [],
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
+    }
+  ],
+
+  "smtpServer": {
+    "host": "signtrust-mailpit",
+    "port": "1025",
+    "from": "noreply@signtrust.local",
+    "fromDisplayName": "SignTrust",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr"],
+  "defaultLocale": "fr"
+}
