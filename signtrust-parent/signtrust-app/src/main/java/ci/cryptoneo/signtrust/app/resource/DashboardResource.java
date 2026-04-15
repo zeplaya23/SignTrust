@@ -28,7 +28,8 @@ public class DashboardResource {
     @Path("/stats")
     public Response stats() {
         String tenantId = identity.getTenantId();
-        DashboardStatsDto stats = envelopeService.getStats(tenantId);
+        String userId = identity.getUserId();
+        DashboardStatsDto stats = envelopeService.getStats(tenantId, userId);
         return Response.ok(stats).build();
     }
 
@@ -36,7 +37,8 @@ public class DashboardResource {
     @Path("/recent")
     public Response recent() {
         String tenantId = identity.getTenantId();
-        List<EnvelopeDto> recent = envelopeService.getRecent(tenantId)
+        String userId = identity.getUserId();
+        List<EnvelopeDto> recent = envelopeService.getRecent(tenantId, userId)
                 .stream().map(DtoMapper::toEnvelopeDtoLight).toList();
         return Response.ok(recent).build();
     }

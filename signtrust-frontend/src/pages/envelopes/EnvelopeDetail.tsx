@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -6,41 +6,15 @@ import {
   XCircle,
   RefreshCw,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
+import PdfViewer from '../../components/ui/PdfViewer';
+import { envelopeService } from '../../services/envelopeService';
 import type { EnvelopeDetail as EnvelopeDetailType, EnvelopeStatus } from '../../types/envelope';
-
-// Mock data
-const mockDetail: EnvelopeDetailType = {
-  id: 1,
-  name: 'Contrat de bail 2024',
-  status: 'SENT',
-  documentsCount: 2,
-  signatoriesCount: 3,
-  createdAt: '2026-04-12T10:00:00Z',
-  expiresAt: '2026-04-20T10:00:00Z',
-  message: 'Merci de signer ce contrat de bail avant la date limite.',
-  signingOrder: 'SEQUENTIAL',
-  documents: [
-    { id: 1, name: 'Contrat_bail.pdf', contentType: 'application/pdf', pageCount: 8, orderIndex: 1 },
-    { id: 2, name: 'Annexe_etat_lieux.pdf', contentType: 'application/pdf', pageCount: 4, orderIndex: 2 },
-  ],
-  signatories: [
-    { id: 1, email: 'jean.dupont@email.com', firstName: 'Jean', lastName: 'Dupont', role: 'SIGNER', orderIndex: 1, status: 'SIGNED', signedAt: '2026-04-13T09:30:00Z' },
-    { id: 2, email: 'marie.martin@email.com', firstName: 'Marie', lastName: 'Martin', role: 'SIGNER', orderIndex: 2, status: 'PENDING' },
-    { id: 3, email: 'paul.bernard@email.com', firstName: 'Paul', lastName: 'Bernard', role: 'APPROVER', orderIndex: 3, status: 'PENDING' },
-  ],
-  fields: [],
-  auditTrail: [
-    { id: 1, action: 'CREATED', userId: 'system', details: 'Enveloppe créée', createdAt: '2026-04-12T10:00:00Z' },
-    { id: 2, action: 'SENT', userId: 'system', details: 'Enveloppe envoyée aux signataires', createdAt: '2026-04-12T10:05:00Z' },
-    { id: 3, action: 'SIGNED', userId: 'jean.dupont@email.com', details: 'Jean Dupont a signé', createdAt: '2026-04-13T09:30:00Z' },
-    { id: 4, action: 'VIEWED', userId: 'marie.martin@email.com', details: 'Marie Martin a consulté l\'enveloppe', createdAt: '2026-04-13T14:00:00Z' },
-  ],
-};
 
 function statusToBadge(status: EnvelopeStatus): 'pending' | 'signed' | 'rejected' | 'draft' {
   switch (status) {
@@ -65,11 +39,123 @@ function formatDateTime(iso: string) {
   });
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  ENVELOPE_CREATED: 'Enveloppe créée',
+  DOCUMENT_ADDED: 'Document ajouté',
+  ENVELOPE_SENT: 'Enveloppe envoyée aux signataires',
+  DOCUMENT_SIGNED: 'Document signé',
+  DOCUMENT_REJECTED: 'Signature refusée',
+  ENVELOPE_COMPLETED: 'Tous les signataires ont signé',
+  ENVELOPE_CANCELLED: 'Enveloppe annulée',
+  ENVELOPE_DELETED: 'Enveloppe supprimée',
+};
+
+function actionLabel(action: string): string {
+  return ACTION_LABELS[action] ?? action;
+}
+
 export default function EnvelopeDetail() {
-  const { id: _id } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const [activeDoc, setActiveDoc] = useState(0);
-  const envelope = mockDetail; // Would fetch by _id
+  const [envelope, setEnvelope] = useState<EnvelopeDetailType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloadingDocId, setDownloadingDocId] = useState<number | null>(null);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  // Fetch envelope detail
+  const fetchEnvelope = useCallback(async (envId: string, signal: AbortSignal) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await envelopeService.getById(Number(envId));
+      if (!signal.aborted) setEnvelope(data);
+    } catch {
+      if (!signal.aborted) setError('Impossible de charger l\'enveloppe');
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    const controller = new AbortController();
+    fetchEnvelope(id, controller.signal);
+    return () => controller.abort();
+  }, [id, fetchEnvelope]);
+
+  // Fetch PDF blob when active doc changes
+  const blobUrlRef = useRef<string | null>(null);
+  const fetchPdfBlob = useCallback(async (envId: number, docId: number, signal: AbortSignal) => {
+    setPdfLoading(true);
+    setPdfBlobUrl(null);
+    try {
+      const url = await envelopeService.getDocumentBlobUrl(envId, docId);
+      if (signal.aborted) { URL.revokeObjectURL(url); return; }
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = url;
+      setPdfBlobUrl(url);
+    } catch {
+      if (!signal.aborted) setPdfBlobUrl(null);
+    } finally {
+      if (!signal.aborted) setPdfLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!envelope || !envelope.documents[activeDoc]) return;
+    const doc = envelope.documents[activeDoc];
+    if (doc.contentType !== 'application/pdf') {
+      setPdfBlobUrl(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetchPdfBlob(envelope.id, doc.id, controller.signal);
+    return () => {
+      controller.abort();
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [envelope, activeDoc, fetchPdfBlob]);
+
+  const handleDownloadDoc = async (docId: number, fileName: string) => {
+    if (!envelope) return;
+    setDownloadingDocId(docId);
+    try {
+      await envelopeService.downloadDocument(envelope.id, docId, fileName);
+    } catch { /* ignore */ }
+    setDownloadingDocId(null);
+  };
+
+  const handleDownloadZip = async () => {
+    if (!envelope) return;
+    setDownloadingZip(true);
+    try {
+      await envelopeService.downloadAllDocumentsZip(envelope.id, envelope.name);
+    } catch { /* ignore */ }
+    setDownloadingZip(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={24} className="animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !envelope) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-sm text-txt-muted">{error || 'Enveloppe introuvable'}</p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -88,12 +174,14 @@ export default function EnvelopeDetail() {
               <Badge status={statusToBadge(envelope.status)} />
             </div>
             <p className="text-sm text-txt-secondary mt-0.5">
-              Créée le {formatDate(envelope.createdAt)} - {envelope.documentsCount} document{envelope.documentsCount > 1 ? 's' : ''}
+              Cr&#233;&#233;e le {formatDate(envelope.createdAt)} - {envelope.documents?.length ?? envelope.documentsCount ?? 0} document{(envelope.documents?.length ?? envelope.documentsCount ?? 0) > 1 ? 's' : ''}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" icon={Download}>Télécharger ZIP</Button>
+          <Button variant="outline" size="sm" icon={downloadingZip ? Loader2 : Download} onClick={handleDownloadZip} disabled={downloadingZip}>
+            {downloadingZip ? 'Téléchargement...' : 'Télécharger ZIP'}
+          </Button>
           {envelope.status === 'SENT' && (
             <>
               <Button variant="outline" size="sm" icon={XCircle}>Annuler</Button>
@@ -127,16 +215,41 @@ export default function EnvelopeDetail() {
           </div>
 
           {/* Document preview */}
-          <Card className="min-h-[600px] flex items-center justify-center">
-            <div className="text-center">
-              <FileText size={48} className="mx-auto text-txt-muted mb-3" />
-              <p className="text-sm font-medium text-txt">
-                {envelope.documents[activeDoc]?.name}
-              </p>
-              <p className="text-xs text-txt-muted mt-1">
-                {envelope.documents[activeDoc]?.pageCount} pages - Aperçu du document
-              </p>
-            </div>
+          <Card className="min-h-[600px] overflow-hidden relative">
+            {/* Download active doc button */}
+            {envelope.documents[activeDoc] && (
+              <button
+                onClick={() => handleDownloadDoc(envelope.documents[activeDoc].id, envelope.documents[activeDoc].name)}
+                disabled={downloadingDocId === envelope.documents[activeDoc].id}
+                className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur border border-border shadow-sm text-xs font-medium text-txt hover:text-primary hover:border-primary/30 transition-colors disabled:opacity-50"
+                title={`Télécharger ${envelope.documents[activeDoc].name}`}
+              >
+                {downloadingDocId === envelope.documents[activeDoc].id
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Download size={13} />
+                }
+                Télécharger
+              </button>
+            )}
+            {pdfLoading ? (
+              <div className="flex items-center justify-center h-full min-h-[600px]">
+                <Loader2 size={24} className="animate-spin text-primary" />
+              </div>
+            ) : pdfBlobUrl ? (
+              <PdfViewer url={pdfBlobUrl} className="min-h-[600px]" />
+            ) : (
+              <div className="flex items-center justify-center h-full min-h-[600px]">
+                <div className="text-center">
+                  <FileText size={48} className="mx-auto text-txt-muted mb-3" />
+                  <p className="text-sm font-medium text-txt">
+                    {envelope.documents[activeDoc]?.name}
+                  </p>
+                  <p className="text-xs text-txt-muted mt-1">
+                    Aper&#231;u non disponible
+                  </p>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 
@@ -144,27 +257,54 @@ export default function EnvelopeDetail() {
         <div className="space-y-5">
           {/* Documents list */}
           <Card padding="md">
-            <h3 className="text-sm font-semibold text-dark mb-3">Documents</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-dark">Documents</h3>
+              {envelope.documents.length > 1 && (
+                <button
+                  onClick={handleDownloadZip}
+                  disabled={downloadingZip}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                >
+                  {downloadingZip ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  Tout télécharger
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {envelope.documents.map((doc, i) => (
-                <button
+                <div
                   key={doc.id}
-                  onClick={() => setActiveDoc(i)}
                   className={clsx(
-                    'w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors',
+                    'flex items-center gap-3 p-3 rounded-xl transition-colors',
                     activeDoc === i
                       ? 'bg-primary-light border border-primary/20'
                       : 'hover:bg-bg border border-transparent'
                   )}
                 >
-                  <FileText size={16} className={activeDoc === i ? 'text-primary' : 'text-txt-muted'} />
-                  <div className="min-w-0 flex-1">
-                    <p className={clsx('text-sm truncate', activeDoc === i ? 'font-semibold text-primary' : 'text-txt')}>
-                      {doc.name}
-                    </p>
-                    <p className="text-xs text-txt-muted">{doc.pageCount} pages</p>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => setActiveDoc(i)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <FileText size={16} className={activeDoc === i ? 'text-primary' : 'text-txt-muted'} />
+                    <div className="min-w-0 flex-1">
+                      <p className={clsx('text-sm truncate', activeDoc === i ? 'font-semibold text-primary' : 'text-txt')}>
+                        {doc.name}
+                      </p>
+                      <p className="text-xs text-txt-muted">{doc.pageCount} pages</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadDoc(doc.id, doc.name)}
+                    disabled={downloadingDocId === doc.id}
+                    className="p-2 rounded-lg hover:bg-white text-txt-muted hover:text-primary transition-colors shrink-0 disabled:opacity-50"
+                    title={`Télécharger ${doc.name}`}
+                  >
+                    {downloadingDocId === doc.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Download size={14} />
+                    }
+                  </button>
+                </div>
               ))}
             </div>
           </Card>
@@ -206,33 +346,43 @@ export default function EnvelopeDetail() {
           </Card>
 
           {/* Audit trail */}
+          {(envelope.auditTrail?.length ?? 0) > 0 && (
           <Card padding="md">
-            <h3 className="text-sm font-semibold text-dark mb-3">Historique</h3>
+            <h3 className="text-sm font-semibold text-dark mb-3">Parcours & Historique</h3>
             <div className="relative">
-              {envelope.auditTrail.map((entry, i) => {
-                const isSuccess = entry.action === 'SIGNED' || entry.action === 'COMPLETED';
+              {envelope.auditTrail!.map((entry, i) => {
+                const isSuccess = entry.action === 'DOCUMENT_SIGNED' || entry.action === 'ENVELOPE_COMPLETED';
+                const isError = entry.action === 'DOCUMENT_REJECTED' || entry.action === 'ENVELOPE_CANCELLED';
+                const isSend = entry.action === 'ENVELOPE_SENT';
+                const dotColor = isSuccess
+                  ? 'bg-success'
+                  : isError
+                    ? 'bg-danger'
+                    : isSend
+                      ? 'bg-primary'
+                      : 'bg-border';
+                const label = actionLabel(entry.action);
                 return (
                   <div key={entry.id} className="flex gap-3 pb-4 last:pb-0">
                     <div className="flex flex-col items-center">
-                      <div
-                        className={clsx(
-                          'w-3 h-3 rounded-full shrink-0 mt-1',
-                          isSuccess ? 'bg-success' : 'bg-border'
-                        )}
-                      />
-                      {i < envelope.auditTrail.length - 1 && (
+                      <div className={clsx('w-3 h-3 rounded-full shrink-0 mt-1', dotColor)} />
+                      {i < envelope.auditTrail!.length - 1 && (
                         <div className="w-0.5 flex-1 bg-border mt-1" />
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm text-txt">{entry.details}</p>
-                      <p className="text-xs text-txt-muted">{formatDateTime(entry.createdAt)}</p>
+                      <p className="text-sm font-medium text-txt">{label}</p>
+                      {entry.details && (
+                        <p className="text-xs text-txt-secondary">{entry.details}</p>
+                      )}
+                      <p className="text-[11px] text-txt-muted mt-0.5">{formatDateTime(entry.createdAt)}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
           </Card>
+          )}
         </div>
       </div>
     </div>

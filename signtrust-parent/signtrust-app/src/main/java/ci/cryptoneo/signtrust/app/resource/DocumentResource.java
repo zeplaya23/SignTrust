@@ -15,8 +15,12 @@ import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Authenticated
 @Path("/api/envelopes/{envelopeId}/documents")
@@ -70,8 +74,44 @@ public class DocumentResource {
         }
         return Response.ok(content)
                 .header("Content-Type", doc.getContentType())
-                .header("Content-Disposition", "attachment; filename=\"" + doc.getName() + "\"")
+                .header("Content-Disposition", "inline; filename=\"" + doc.getName() + "\"")
                 .build();
+    }
+
+    @GET
+    @Path("/zip")
+    @Produces("application/zip")
+    public Response downloadZip(@PathParam("envelopeId") Long envelopeId) {
+        String tenantId = identity.getTenantId();
+        var envelope = envelopeService.findEnvelope(envelopeId, tenantId);
+        List<DocumentEntity> docs = envelope.getDocuments();
+        if (docs == null || docs.isEmpty()) {
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity(ApiResponse.error("Aucun document dans l'enveloppe"))
+                    .build();
+        }
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ZipOutputStream zos = new ZipOutputStream(baos);
+            for (DocumentEntity doc : docs) {
+                byte[] content = storageService.download(tenantId, doc.getStorageKey());
+                if (content != null) {
+                    zos.putNextEntry(new ZipEntry(doc.getName()));
+                    zos.write(content);
+                    zos.closeEntry();
+                }
+            }
+            zos.close();
+            String zipName = envelope.getName().replaceAll("[^a-zA-Z0-9À-ÿ\\s_-]", "") + ".zip";
+            return Response.ok(baos.toByteArray())
+                    .header("Content-Type", "application/zip")
+                    .header("Content-Disposition", "attachment; filename=\"" + zipName + "\"")
+                    .build();
+        } catch (IOException e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(ApiResponse.error("Erreur création ZIP: " + e.getMessage()))
+                    .build();
+        }
     }
 
     @DELETE

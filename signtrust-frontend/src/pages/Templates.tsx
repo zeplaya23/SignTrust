@@ -1,16 +1,8 @@
-import { useState } from 'react';
-import { Plus, FolderOpen, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, FolderOpen, X, Loader2, AlertCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
-
-interface MockTemplate {
-  id: number;
-  name: string;
-  description: string;
-  documentsCount: number;
-  usageCount: number;
-  createdAt: string;
-}
+import { templateService, type Template } from '../services/templateService';
 
 const ICON_COLORS = [
   { bg: 'bg-primary-light', text: 'text-primary' },
@@ -19,22 +11,50 @@ const ICON_COLORS = [
   { bg: 'bg-[#6C5CE7]/10', text: 'text-[#6C5CE7]' },
 ];
 
-const mockTemplates: MockTemplate[] = [
-  { id: 1, name: 'Contrat commercial', description: 'Modèle standard pour les contrats commerciaux entre entreprises avec clauses générales.', documentsCount: 3, usageCount: 24, createdAt: '2025-12-01' },
-  { id: 2, name: 'NDA - Accord de confidentialité', description: 'Accord de non-divulgation pour protéger les informations sensibles entre partenaires.', documentsCount: 1, usageCount: 18, createdAt: '2025-11-15' },
-  { id: 3, name: 'Avenant de contrat', description: "Modification ou ajout de clauses à un contrat existant déjà signé par les parties.", documentsCount: 2, usageCount: 11, createdAt: '2025-10-20' },
-  { id: 4, name: 'PV Assemblée Générale', description: "Procès-verbal d'assemblée générale ordinaire ou extraordinaire pour les sociétés.", documentsCount: 4, usageCount: 8, createdAt: '2026-01-10' },
-  { id: 5, name: 'Contrat de bail', description: 'Modèle de contrat de location pour les baux commerciaux et résidentiels.', documentsCount: 2, usageCount: 15, createdAt: '2026-02-05' },
-  { id: 6, name: 'Bon de commande', description: 'Document standard pour les commandes fournisseurs avec détails des produits et tarifs.', documentsCount: 1, usageCount: 31, createdAt: '2026-03-01' },
-];
+function getDocumentsCount(tpl: Template): number {
+  if (!tpl.documentsJson) return 0;
+  try {
+    const parsed = JSON.parse(tpl.documentsJson);
+    return Array.isArray(parsed) ? parsed.length : 0;
+  } catch {
+    return 0;
+  }
+}
 
 export default function Templates() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', description: '' });
 
-  const handleCreate = () => {
-    setShowCreateModal(false);
-    setCreateForm({ name: '', description: '' });
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTemplates = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await templateService.getAll();
+      setTemplates(data);
+    } catch {
+      setError('Impossible de charger les modèles.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]);
+
+  const handleCreate = async () => {
+    try {
+      await templateService.create(createForm);
+      setShowCreateModal(false);
+      setCreateForm({ name: '', description: '' });
+      fetchTemplates();
+    } catch {
+      // Keep modal open on error
+    }
   };
 
   return (
@@ -44,40 +64,62 @@ export default function Templates() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-txt">Modèles</h1>
           <span className="bg-primary-light text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
-            {mockTemplates.length}
+            {templates.length}
           </span>
         </div>
         <Button variant="primary" icon={Plus} onClick={() => setShowCreateModal(true)}>Créer un modèle</Button>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-primary" />
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <AlertCircle size={32} className="text-danger" />
+          <p className="text-sm text-txt-secondary">{error}</p>
+          <Button variant="outline" size="sm" onClick={fetchTemplates}>Réessayer</Button>
+        </div>
+      )}
+
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {mockTemplates.map((tpl, i) => {
-          const color = ICON_COLORS[i % ICON_COLORS.length];
-          return (
-            <Card key={tpl.id} padding="md" className="flex flex-col justify-between hover:shadow-md transition-shadow">
-              <div>
-                <div className={`w-12 h-12 rounded-xl ${color.bg} flex items-center justify-center mb-4`}>
-                  <FolderOpen size={24} className={color.text} />
+      {!loading && !error && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {templates.length === 0 && (
+            <p className="text-sm text-txt-muted col-span-full text-center py-12">Aucun modèle trouvé.</p>
+          )}
+          {templates.map((tpl, i) => {
+            const color = ICON_COLORS[i % ICON_COLORS.length];
+            const docsCount = getDocumentsCount(tpl);
+            return (
+              <Card key={tpl.id} padding="md" className="flex flex-col justify-between hover:shadow-md transition-shadow">
+                <div>
+                  <div className={`w-12 h-12 rounded-xl ${color.bg} flex items-center justify-center mb-4`}>
+                    <FolderOpen size={24} className={color.text} />
+                  </div>
+                  <h3 className="text-base font-bold text-txt mb-1">{tpl.name}</h3>
+                  <p className="text-sm text-txt-secondary mb-4 line-clamp-2">{tpl.description}</p>
                 </div>
-                <h3 className="text-base font-bold text-txt mb-1">{tpl.name}</h3>
-                <p className="text-sm text-txt-secondary mb-4 line-clamp-2">{tpl.description}</p>
-              </div>
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="bg-primary-light text-primary text-xs font-medium px-2 py-0.5 rounded-full">
-                    {tpl.documentsCount} document{tpl.documentsCount > 1 ? 's' : ''}
-                  </span>
-                  <span className="text-xs text-txt-muted">
-                    Utilisé {tpl.usageCount} fois
-                  </span>
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="bg-primary-light text-primary text-xs font-medium px-2 py-0.5 rounded-full">
+                      {docsCount} document{docsCount > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs text-txt-muted">
+                      Utilisé {tpl.usageCount} fois
+                    </span>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full">Utiliser</Button>
                 </div>
-                <Button variant="outline" size="sm" className="w-full">Utiliser</Button>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

@@ -65,6 +65,41 @@ export const envelopeService = {
     return `${api.defaults.baseURL}/envelopes/${envelopeId}/documents/${docId}/download`;
   },
 
+  async getDocumentBlobUrl(envelopeId: number, docId: number): Promise<string> {
+    const { data } = await api.get(`/envelopes/${envelopeId}/documents/${docId}`, {
+      responseType: 'blob',
+    });
+    return URL.createObjectURL(data);
+  },
+
+  async downloadDocument(envelopeId: number, docId: number, fileName: string): Promise<void> {
+    const { data } = await api.get(`/envelopes/${envelopeId}/documents/${docId}`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadAllDocumentsZip(envelopeId: number, envelopeName: string): Promise<void> {
+    const { data } = await api.get(`/envelopes/${envelopeId}/documents/zip`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${envelopeName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   // Signatories
   async addSignatory(envelopeId: number, payload: SignatoryRequest): Promise<Signatory> {
     const { data } = await api.post(`/envelopes/${envelopeId}/signatories`, payload);

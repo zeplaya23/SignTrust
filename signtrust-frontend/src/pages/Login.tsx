@@ -40,6 +40,7 @@ export default function Login() {
       const resp = await authService.login(data);
       setAuth(
         resp.accessToken,
+        resp.refreshToken,
         {
           id: resp.user.id,
           email: resp.user.email,
@@ -52,8 +53,9 @@ export default function Login() {
         (resp.user.subscriptionStatus || 'NONE') as SubscriptionStatus
       );
       navigate('/dashboard');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Email ou mot de passe incorrect';
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message || 'Email ou mot de passe incorrect';
       setError(msg);
     } finally {
       setLoading(false);

@@ -13,7 +13,10 @@ public record EnvelopeDto(
         LocalDateTime expiresAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
+        Integer documentsCount,
+        Integer signatoriesCount,
         List<DocumentDto> documents,
         List<SignatoryDto> signatories,
-        List<SignatureFieldDto> fields
+        List<SignatureFieldDto> fields,
+        List<AuditLogDto> auditTrail
 ) {}

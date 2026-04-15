@@ -51,6 +51,9 @@ services:
       QUARKUS_HTTP_CORS_HEADERS: accept,authorization,content-type,x-tenant-id
       QUARKUS_HTTP_CORS_EXPOSED_HEADERS: location
 
+      # ── Frontend URL (for signing links in emails) ──
+      SIGNTRUST_FRONTEND_URL: http://158.220.112.175:5080
+
       # ── EJBCA PKI ──
       SIGNTRUST_EJBCA_URL: ${EJBCA_URL}
 

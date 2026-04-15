@@ -4,6 +4,7 @@ import ci.cryptoneo.signtrust.app.dto.*;
 import ci.cryptoneo.signtrust.app.entity.EnvelopeEntity;
 import ci.cryptoneo.signtrust.app.service.DtoMapper;
 import ci.cryptoneo.signtrust.app.service.EnvelopeServiceImpl;
+import ci.cryptoneo.signtrust.audit.AuditLogEntity;
 import ci.cryptoneo.signtrust.iam.SignTrustIdentity;
 import ci.cryptoneo.signtrust.tenant.TenantContext;
 import io.quarkus.security.Authenticated;
@@ -42,8 +43,9 @@ public class EnvelopeResource {
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size) {
         String tenantId = identity.getTenantId();
-        List<EnvelopeEntity> envelopes = envelopeService.list(tenantId, status, page, size);
-        long total = envelopeService.count(tenantId, status);
+        String userId = identity.getUserId();
+        List<EnvelopeEntity> envelopes = envelopeService.list(tenantId, userId, status, page, size);
+        long total = envelopeService.count(tenantId, userId, status);
         List<EnvelopeDto> dtos = envelopes.stream().map(DtoMapper::toEnvelopeDtoLight).toList();
         return Response.ok(new PagedResponse<>(dtos, total, page, size)).build();
     }
@@ -53,7 +55,8 @@ public class EnvelopeResource {
     public Response get(@PathParam("id") Long id) {
         String tenantId = identity.getTenantId();
         EnvelopeEntity envelope = envelopeService.findEnvelope(id, tenantId);
-        return Response.ok(DtoMapper.toEnvelopeDto(envelope)).build();
+        List<AuditLogEntity> auditLogs = envelopeService.getAuditTrail(tenantId, id);
+        return Response.ok(DtoMapper.toEnvelopeDto(envelope, auditLogs)).build();
     }
 
     @PUT

@@ -7,7 +7,7 @@ export interface AppNotification {
   message: string;
   read: boolean;
   relatedEntityType?: string;
-  relatedEntityId?: number;
+  relatedEntityId?: string;
   createdAt: string;
 }
 

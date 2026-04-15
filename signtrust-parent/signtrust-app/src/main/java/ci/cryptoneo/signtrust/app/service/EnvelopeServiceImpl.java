@@ -2,6 +2,7 @@ package ci.cryptoneo.signtrust.app.service;
 
 import ci.cryptoneo.signtrust.app.dto.*;
 import ci.cryptoneo.signtrust.app.entity.*;
+import ci.cryptoneo.signtrust.audit.AuditLogEntity;
 import ci.cryptoneo.signtrust.audit.AuditService;
 import ci.cryptoneo.signtrust.envelope.EnvelopeService;
 import ci.cryptoneo.signtrust.notification.NotificationService;
@@ -11,6 +12,7 @@ import ci.cryptoneo.signtrust.tenant.TenantContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -39,6 +41,9 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
     @Inject
     AuditService auditService;
+
+    @ConfigProperty(name = "signtrust.frontend.url", defaultValue = "http://localhost:5080")
+    String frontendUrl;
 
     @Override
     @Transactional
@@ -115,28 +120,30 @@ public class EnvelopeServiceImpl implements EnvelopeService {
     }
 
     @SuppressWarnings("unchecked")
-    public List<EnvelopeEntity> list(String tenantId, String status, int page, int size) {
-        String query = "SELECT e FROM EnvelopeEntity e WHERE e.tenantId = :tenantId";
+    public List<EnvelopeEntity> list(String tenantId, String userId, String status, int page, int size) {
+        String query = "SELECT e FROM EnvelopeEntity e WHERE e.tenantId = :tenantId AND e.createdBy = :userId";
         if (status != null && !status.isBlank()) {
             query += " AND e.status = :status";
         }
         query += " ORDER BY e.createdAt DESC";
 
         var q = em.createQuery(query, EnvelopeEntity.class)
-                .setParameter("tenantId", tenantId);
+                .setParameter("tenantId", tenantId)
+                .setParameter("userId", userId);
         if (status != null && !status.isBlank()) {
             q.setParameter("status", status);
         }
         return q.setFirstResult(page * size).setMaxResults(size).getResultList();
     }
 
-    public long count(String tenantId, String status) {
-        String query = "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tenantId";
+    public long count(String tenantId, String userId, String status) {
+        String query = "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tenantId AND e.createdBy = :userId";
         if (status != null && !status.isBlank()) {
             query += " AND e.status = :status";
         }
         var q = em.createQuery(query, Long.class)
-                .setParameter("tenantId", tenantId);
+                .setParameter("tenantId", tenantId)
+                .setParameter("userId", userId);
         if (status != null && !status.isBlank()) {
             q.setParameter("status", status);
         }
@@ -360,7 +367,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             em.merge(sig);
 
             try {
-                String signingLink = "https://app.signtrust.ci/sign/" + sig.getToken();
+                String signingLink = frontendUrl + "/sign/" + sig.getToken();
                 String html = buildSigningEmailHtml(envelope.getName(), sig.getFirstName(), envelope.getMessage(), signingLink);
                 notificationService.sendEmail(sig.getEmail(), "Invitation a signer: " + envelope.getName(), html);
             } catch (Exception e) {
@@ -428,15 +435,43 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             throw new WebApplicationException("Already " + sig.getStatus().toLowerCase(), Response.Status.BAD_REQUEST);
         }
 
-        // Mock sign each document
+        // Decode signature image from base64 (strip data URI prefix if present)
+        byte[] signatureImageBytes = null;
+        if (signatureImageBase64 != null && !signatureImageBase64.isBlank()) {
+            String base64Data = signatureImageBase64;
+            if (base64Data.contains(",")) {
+                base64Data = base64Data.substring(base64Data.indexOf(",") + 1);
+            }
+            signatureImageBytes = java.util.Base64.getDecoder().decode(base64Data);
+        }
+
+        String signerFullName = sig.getFirstName() + " " + sig.getLastName();
+
+        // Sign each document and stamp signature at field positions
         for (DocumentEntity doc : envelope.getDocuments()) {
             byte[] content = storageService.download(envelope.getTenantId(), doc.getStorageKey());
-            if (content != null) {
-                byte[] signed = signatureService.signPdf(content, sig.getEmail(),
-                        "Signed by " + sig.getFirstName() + " " + sig.getLastName(),
-                        "SignTrust");
-                storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
+            if (content == null) continue;
+
+            // Stamp visual signature at each SIGNATURE field for this signatory on this document
+            if (signatureImageBytes != null && doc.getFields() != null) {
+                for (SignatureFieldEntity field : doc.getFields()) {
+                    if (field.getSignatory() != null && field.getSignatory().getId().equals(sig.getId())
+                            && "SIGNATURE".equals(field.getType())) {
+                        content = signatureService.stampSignatureImage(content, signatureImageBytes,
+                                field.getPageNumber() != null ? field.getPageNumber() : 1,
+                                field.getX() != null ? field.getX() : 0,
+                                field.getY() != null ? field.getY() : 0,
+                                field.getWidth() != null ? field.getWidth() : 25,
+                                field.getHeight() != null ? field.getHeight() : 8,
+                                signerFullName);
+                    }
+                }
             }
+
+            // Apply mock digital signature
+            byte[] signed = signatureService.signPdf(content, sig.getEmail(),
+                    "Signed by " + signerFullName, "SignTrust");
+            storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
         }
 
         sig.setStatus("SIGNED");
@@ -484,21 +519,30 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
     // --- Dashboard ---
 
-    public DashboardStatsDto getStats(String tenantId) {
-        long total = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid", Long.class)
-                .setParameter("tid", tenantId).getSingleResult();
-        long pending = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.status = 'SENT'", Long.class)
-                .setParameter("tid", tenantId).getSingleResult();
-        long signed = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.status = 'COMPLETED'", Long.class)
-                .setParameter("tid", tenantId).getSingleResult();
+    public DashboardStatsDto getStats(String tenantId, String userId) {
+        long total = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid", Long.class)
+                .setParameter("tid", tenantId).setParameter("uid", userId).getSingleResult();
+        long pending = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid AND e.status = 'SENT'", Long.class)
+                .setParameter("tid", tenantId).setParameter("uid", userId).getSingleResult();
+        long signed = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid AND e.status = 'COMPLETED'", Long.class)
+                .setParameter("tid", tenantId).setParameter("uid", userId).getSingleResult();
         double rate = total > 0 ? (double) signed / total * 100 : 0;
         return new DashboardStatsDto(total, pending, signed, Math.round(rate * 100.0) / 100.0);
     }
 
-    public List<EnvelopeEntity> getRecent(String tenantId) {
-        return em.createQuery("SELECT e FROM EnvelopeEntity e WHERE e.tenantId = :tid ORDER BY e.createdAt DESC", EnvelopeEntity.class)
-                .setParameter("tid", tenantId)
+    public List<EnvelopeEntity> getRecent(String tenantId, String userId) {
+        return em.createQuery("SELECT e FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid ORDER BY e.createdAt DESC", EnvelopeEntity.class)
+                .setParameter("tid", tenantId).setParameter("uid", userId)
                 .setMaxResults(5)
+                .getResultList();
+    }
+
+    public List<AuditLogEntity> getAuditTrail(String tenantId, Long envelopeId) {
+        return em.createQuery(
+                "SELECT a FROM AuditLogEntity a WHERE a.tenantId = :tid AND a.entityType = 'ENVELOPE' AND a.entityId = :eid ORDER BY a.createdAt ASC",
+                AuditLogEntity.class)
+                .setParameter("tid", tenantId)
+                .setParameter("eid", String.valueOf(envelopeId))
                 .getResultList();
     }
 

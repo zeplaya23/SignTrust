@@ -8,19 +8,28 @@ export interface Envelope {
   id: number;
   name: string;
   status: EnvelopeStatus;
-  documentsCount: number;
-  signatoriesCount: number;
+  documentsCount?: number;
+  signatoriesCount?: number;
+  documents?: Document[] | null;
+  signatories?: Signatory[] | null;
+  fields?: SignatureField[] | null;
+  createdBy?: string;
+  message?: string;
+  signingOrder?: SigningOrder;
   createdAt: string;
-  expiresAt: string;
+  updatedAt?: string;
+  expiresAt?: string | null;
 }
 
 export interface EnvelopeDetail extends Envelope {
   message: string;
   signingOrder: SigningOrder;
+  createdBy: string;
+  updatedAt: string;
   documents: Document[];
   signatories: Signatory[];
   fields: SignatureField[];
-  auditTrail: AuditEntry[];
+  auditTrail?: AuditEntry[];
 }
 
 export interface Document {
@@ -29,6 +38,7 @@ export interface Document {
   contentType: string;
   pageCount: number;
   orderIndex: number;
+  storageKey?: string;
 }
 
 export interface Signatory {
@@ -89,11 +99,11 @@ export interface FieldRequest {
 }
 
 export interface SignEnvelopeInfo {
-  envelopeId: number;
   envelopeName: string;
-  senderName: string;
+  message: string;
+  signatoryName: string;
+  signatoryEmail: string;
+  signatoryStatus: string;
   documents: Document[];
-  signatories: Signatory[];
   fields: SignatureField[];
-  currentSignatory: Signatory;
 }

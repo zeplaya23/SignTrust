@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -7,18 +7,21 @@ import {
   Users,
   UserCog,
   Settings,
+  Bell,
+  LogOut,
+  Zap,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Logo from '../ui/Logo';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useSubscription } from '../../hooks/useSubscription';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/envelopes', label: 'Enveloppes', icon: FolderOpen },
-  { to: '/envelopes/new', label: 'Nouvelle enveloppe', icon: PlusCircle, accent: true },
-  { to: '/templates', label: 'Modèles', icon: Copy },
+  { to: '/templates', label: 'Modeles', icon: Copy },
   { to: '/contacts', label: 'Contacts', icon: Users },
-  { to: '/team', label: 'Équipe', icon: UserCog },
+  { to: '/team', label: 'Equipe', icon: UserCog },
 ];
 
 function getInitials(firstName?: string, lastName?: string): string {
@@ -27,21 +30,55 @@ function getInitials(firstName?: string, lastName?: string): string {
   return f + l || '?';
 }
 
+function getPlanColors(status: string) {
+  switch (status) {
+    case 'ACTIVE': return { color: 'text-accent', bg: 'bg-accent' };
+    case 'TRIAL': return { color: 'text-warning', bg: 'bg-warning' };
+    default: return { color: 'text-txt-secondary', bg: 'bg-txt-secondary' };
+  }
+}
+
 export default function AppLayout() {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const subscriptionStatus = useAuthStore((s) => s.subscriptionStatus);
+  const logout = useAuthStore((s) => s.logout);
+  const { info: subInfo } = useSubscription();
+  const planColors = getPlanColors(subInfo.status);
+  const usagePercent = subInfo.max > 0 ? Math.min(100, Math.round((subInfo.used / subInfo.max) * 100)) : 0;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
-    <div className="min-h-screen flex bg-bg">
-      {/* Sidebar */}
-      <aside className="w-[230px] shrink-0 bg-white border-r border-border flex flex-col">
-        {/* Logo */}
-        <div className="px-5 pt-6 pb-4">
-          <Logo size="sm" />
+    <div className="h-screen flex bg-bg overflow-hidden">
+      <aside className="w-[250px] shrink-0 bg-white border-r border-border flex flex-col h-screen">
+
+        {/* ── Logo + New button ── */}
+        <div className="px-4 pt-5 pb-2 shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <Logo size="sm" />
+            <button
+              onClick={() => navigate('/notifications')}
+              className="relative p-1.5 rounded-lg hover:bg-bg transition-colors"
+            >
+              <Bell size={18} className="text-txt-secondary" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full" />
+            </button>
+          </div>
+          <button
+            onClick={() => navigate('/envelopes/new')}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <PlusCircle size={18} />
+            Nouvelle enveloppe
+          </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 flex flex-col gap-0.5">
+        {/* ── Navigation ── */}
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 flex flex-col gap-0.5">
+          <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-txt-muted">Menu</p>
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -49,68 +86,90 @@ export default function AppLayout() {
               end={item.to === '/envelopes'}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
+                  'flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] transition-colors shrink-0',
                   isActive
                     ? 'bg-primary-light text-primary font-semibold'
-                    : 'text-txt-secondary hover:bg-bg',
-                  item.accent && !isActive && 'text-accent'
+                    : 'text-txt-secondary hover:bg-bg'
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  <item.icon
-                    size={18}
-                    className={clsx(
-                      item.accent && !isActive ? 'text-accent' : isActive ? 'text-primary' : ''
-                    )}
-                  />
-                  <span>{item.label}</span>
-                </>
-              )}
+              <item.icon size={17} />
+              <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        {/* Bottom section */}
-        <div className="px-3 pb-4 mt-auto flex flex-col gap-2">
+        {/* ── Abonnement compact ── */}
+        <div className="px-4 shrink-0">
+          <div
+            onClick={() => navigate('/settings')}
+            className="rounded-xl bg-bg px-3 py-3 cursor-pointer hover:bg-border/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Zap size={13} className={planColors.color} />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-txt-secondary">
+                  Plan {subInfo.planName}
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-txt">
+                {subInfo.used}/{subInfo.max}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-border rounded-full overflow-hidden">
+              <div
+                className={clsx('h-full rounded-full transition-all', planColors.bg)}
+                style={{ width: `${usagePercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Separator ── */}
+        <div className="px-5 py-2 shrink-0">
+          <div className="border-t border-border" />
+        </div>
+
+        {/* ── Bottom links ── */}
+        <div className="px-3 shrink-0 flex flex-col gap-0.5">
           <NavLink
             to="/settings"
             className={({ isActive }) =>
               clsx(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
-                isActive
-                  ? 'bg-primary-light text-primary font-semibold'
-                  : 'text-txt-secondary hover:bg-bg'
+                'flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] transition-colors',
+                isActive ? 'bg-primary-light text-primary font-semibold' : 'text-txt-secondary hover:bg-bg'
               )
             }
           >
-            <Settings size={18} />
-            <span>Paramètres</span>
+            <Settings size={17} />
+            <span>Parametres</span>
           </NavLink>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] text-danger hover:bg-danger-light transition-colors w-full text-left"
+          >
+            <LogOut size={17} />
+            <span>Deconnexion</span>
+          </button>
+        </div>
 
-          {/* User profile card */}
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-border bg-bg/50">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-semibold shrink-0">
+        {/* ── User card ── */}
+        <div className="px-3 py-3 shrink-0">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-bg/50">
+            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
               {getInitials(user?.firstName, user?.lastName)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-txt truncate">
+              <p className="text-[13px] font-semibold text-txt truncate">
                 {user?.firstName} {user?.lastName}
               </p>
-              <span className="inline-block text-[10px] font-semibold uppercase tracking-wider text-accent bg-accent-light px-1.5 py-0.5 rounded">
-                {subscriptionStatus === 'ACTIVE'
-                  ? 'Pro'
-                  : subscriptionStatus === 'TRIAL'
-                    ? 'Essai'
-                    : 'Gratuit'}
-              </span>
+              <p className="text-[11px] text-txt-muted truncate">{user?.email}</p>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Content area */}
+      {/* ── Content ── */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-8">
           <Outlet />

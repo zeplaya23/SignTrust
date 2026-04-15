@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Receipt, AlertTriangle, CheckCheck, FileText, Users } from 'lucide-react';
+import { Bell, Receipt, AlertTriangle, CheckCheck, FileText, Users, Loader2, AlertCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
+import { notificationService, type AppNotification } from '../services/notificationService';
 
 function relativeTime(dateStr: string): string {
   const now = new Date();
@@ -18,30 +19,6 @@ function relativeTime(dateStr: string): string {
   return date.toLocaleDateString('fr-FR');
 }
 
-interface MockNotification {
-  id: number;
-  type: 'signature' | 'payment' | 'renewal' | 'team' | 'document';
-  title: string;
-  message: string;
-  read: boolean;
-  relatedEntityType?: string;
-  relatedEntityId?: number;
-  createdAt: string;
-}
-
-const mockNotifications: MockNotification[] = [
-  { id: 1, type: 'signature', title: 'Signature requise', message: 'Vous avez 3 documents en attente de signature pour le contrat commercial.', read: false, relatedEntityType: 'envelope', relatedEntityId: 101, createdAt: new Date(Date.now() - 1800000).toISOString() },
-  { id: 2, type: 'payment', title: 'Paiement confirmé', message: 'Votre paiement de 15 000 FCFA pour le plan Professionnel a été reçu.', read: false, relatedEntityType: 'subscription', relatedEntityId: 1, createdAt: new Date(Date.now() - 7200000).toISOString() },
-  { id: 3, type: 'document', title: 'Document signé', message: 'Le NDA avec Traoré Ibrahim a été signé par toutes les parties (2 documents).', read: false, relatedEntityType: 'envelope', relatedEntityId: 102, createdAt: new Date(Date.now() - 10800000).toISOString() },
-  { id: 4, type: 'renewal', title: 'Renouvellement proche', message: 'Votre abonnement expire dans 5 jours. Pensez à le renouveler.', read: false, relatedEntityType: 'subscription', relatedEntityId: 1, createdAt: new Date(Date.now() - 21600000).toISOString() },
-  { id: 5, type: 'team', title: 'Nouveau membre', message: 'Fatou Coulibaly a rejoint votre équipe en tant que Membre.', read: true, relatedEntityType: 'team', relatedEntityId: 4, createdAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 6, type: 'signature', title: 'Rappel de signature', message: 'Koné Mariam n\'a pas encore signé l\'avenant de contrat (1 document restant).', read: true, relatedEntityType: 'envelope', relatedEntityId: 103, createdAt: new Date(Date.now() - 86400000 * 1.5).toISOString() },
-  { id: 7, type: 'payment', title: 'Échec de paiement', message: 'Le paiement automatique de votre abonnement a échoué. Mettez à jour votre moyen de paiement.', read: true, relatedEntityType: 'subscription', relatedEntityId: 1, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 8, type: 'document', title: 'Enveloppe expirée', message: 'L\'enveloppe "PV Assemblée Générale" contenant 4 documents a expiré sans signatures complètes.', read: true, relatedEntityType: 'envelope', relatedEntityId: 104, createdAt: new Date(Date.now() - 86400000 * 3).toISOString() },
-  { id: 9, type: 'team', title: 'Rôle modifié', message: 'Le rôle de Marc Bamba a été changé de Membre à Manager.', read: true, relatedEntityType: 'team', relatedEntityId: 5, createdAt: new Date(Date.now() - 86400000 * 4).toISOString() },
-  { id: 10, type: 'renewal', title: 'Quota atteint à 90%', message: 'Vous avez utilisé 180/200 enveloppes ce mois. Pensez à surclasser votre plan.', read: true, relatedEntityType: 'subscription', relatedEntityId: 1, createdAt: new Date(Date.now() - 86400000 * 5).toISOString() },
-];
-
 const iconMap: Record<string, { icon: typeof Bell; bg: string; text: string }> = {
   signature: { icon: Bell, bg: 'bg-primary-light', text: 'text-primary' },
   payment: { icon: Receipt, bg: 'bg-success-light', text: 'text-success' },
@@ -52,18 +29,49 @@ const iconMap: Record<string, { icon: typeof Bell; bg: string; text: string }> =
 
 export default function Notifications() {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await notificationService.getAll();
+      setNotifications(data);
+    } catch {
+      setError('Impossible de charger les notifications.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    try {
+      await notificationService.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch {
+      // Silently fail
+    }
   };
 
-  const handleClick = (notif: MockNotification) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
-    );
+  const handleClick = async (notif: AppNotification) => {
+    if (!notif.read) {
+      try {
+        await notificationService.markRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+        );
+      } catch {
+        // Silently fail
+      }
+    }
     if (notif.relatedEntityType === 'envelope') {
       navigate(`/envelopes/${notif.relatedEntityId}`);
     } else if (notif.relatedEntityType === 'subscription') {
@@ -92,40 +100,61 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Notification list */}
-      <div className="space-y-3 max-w-3xl">
-        {notifications.map((notif) => {
-          const config = iconMap[notif.type] || iconMap.signature;
-          const Icon = config.icon;
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={24} className="animate-spin text-primary" />
+        </div>
+      )}
 
-          return (
-            <div
-              key={notif.id}
-              onClick={() => handleClick(notif)}
-              className={`
-                flex items-start gap-4 p-4 rounded-2xl border cursor-pointer transition-all hover:shadow-sm
-                ${notif.read
-                  ? 'bg-white border-border'
-                  : 'bg-primary-light border-l-4 border-primary/25 border-t-border border-r-border border-b-border'
-                }
-              `}
-            >
-              <div className={`w-10 h-10 rounded-xl ${config.bg} flex items-center justify-center flex-shrink-0`}>
-                <Icon size={20} className={config.text} />
+      {/* Error */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <AlertCircle size={32} className="text-danger" />
+          <p className="text-sm text-txt-secondary">{error}</p>
+          <Button variant="outline" size="sm" onClick={fetchNotifications}>Réessayer</Button>
+        </div>
+      )}
+
+      {/* Notification list */}
+      {!loading && !error && (
+        <div className="space-y-3 max-w-3xl">
+          {notifications.length === 0 && (
+            <p className="text-sm text-txt-muted text-center py-12">Aucune notification.</p>
+          )}
+          {notifications.map((notif) => {
+            const config = iconMap[notif.type] || iconMap.signature;
+            const Icon = config.icon;
+
+            return (
+              <div
+                key={notif.id}
+                onClick={() => handleClick(notif)}
+                className={`
+                  flex items-start gap-4 p-4 rounded-2xl border cursor-pointer transition-all hover:shadow-sm
+                  ${notif.read
+                    ? 'bg-white border-border'
+                    : 'bg-primary-light border-l-4 border-primary/25 border-t-border border-r-border border-b-border'
+                  }
+                `}
+              >
+                <div className={`w-10 h-10 rounded-xl ${config.bg} flex items-center justify-center flex-shrink-0`}>
+                  <Icon size={20} className={config.text} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm ${notif.read ? 'font-medium text-txt' : 'font-bold text-txt'}`}>
+                    {notif.title}
+                  </p>
+                  <p className="text-sm text-txt-secondary mt-0.5 line-clamp-2">{notif.message}</p>
+                </div>
+                <span className="text-xs text-txt-muted whitespace-nowrap flex-shrink-0 mt-0.5">
+                  {relativeTime(notif.createdAt)}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm ${notif.read ? 'font-medium text-txt' : 'font-bold text-txt'}`}>
-                  {notif.title}
-                </p>
-                <p className="text-sm text-txt-secondary mt-0.5 line-clamp-2">{notif.message}</p>
-              </div>
-              <span className="text-xs text-txt-muted whitespace-nowrap flex-shrink-0 mt-0.5">
-                {relativeTime(notif.createdAt)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

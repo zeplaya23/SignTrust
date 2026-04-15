@@ -1,8 +1,12 @@
-import { Link } from 'react-router-dom';
-import { Check, Download, ArrowRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Check, Download, ArrowRight, Loader2 } from 'lucide-react';
 import ReceiptCard from '../../components/subscription/ReceiptCard';
 import Button from '../../components/ui/Button';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { authService } from '../../services/authService';
+import type { SubscriptionStatus } from '../../types/subscription';
 
 function getTrialEndDate(): string {
   const date = new Date();
@@ -15,7 +19,55 @@ function getTrialEndDate(): string {
 }
 
 export default function PaymentSuccess() {
-  const { selectedPlan, paymentMethod } = useSubscriptionStore();
+  const navigate = useNavigate();
+  const { selectedPlan, paymentMethod, registrationData, reset } = useSubscriptionStore();
+  const { setAuth, token } = useAuthStore();
+  const [autoLoginDone, setAutoLoginDone] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Auto-login after payment
+  useEffect(() => {
+    if (token || autoLoginDone) return;
+
+    const doLogin = async () => {
+      if (!registrationData?.email || !registrationData?.password) {
+        setAutoLoginDone(true);
+        return;
+      }
+
+      try {
+        const resp = await authService.login({
+          email: registrationData.email,
+          password: registrationData.password,
+        });
+        setAuth(
+          resp.accessToken,
+          resp.refreshToken,
+          {
+            id: resp.user.id,
+            email: resp.user.email,
+            firstName: resp.user.firstName,
+            lastName: resp.user.lastName,
+            phone: resp.user.phone,
+            role: resp.user.role,
+            tenantId: resp.user.tenantId,
+          },
+          (resp.user.subscriptionStatus || 'NONE') as SubscriptionStatus
+        );
+        setAutoLoginDone(true);
+      } catch {
+        setLoginError('Connexion automatique echouee');
+        setAutoLoginDone(true);
+      }
+    };
+
+    doLogin();
+  }, [token, autoLoginDone, registrationData, setAuth]);
+
+  const handleGo = () => {
+    reset();
+    navigate('/dashboard');
+  };
 
   const methodLabels: Record<string, string> = {
     card: 'Carte bancaire',
@@ -50,15 +102,32 @@ export default function PaymentSuccess() {
           />
         </div>
 
+        {loginError && (
+          <div className="bg-danger-light text-danger rounded-xl px-4 py-3 mb-4 text-sm font-medium">
+            {loginError}. <button onClick={() => navigate('/login')} className="underline font-bold">Se connecter manuellement</button>
+          </div>
+        )}
+
+        {!autoLoginDone && !token ? (
+          <div className="flex items-center justify-center gap-2 text-sm text-txt-secondary mb-4">
+            <Loader2 size={16} className="animate-spin" />
+            Connexion en cours...
+          </div>
+        ) : null}
+
         <div className="flex flex-col sm:flex-row gap-3">
           <Button variant="outline" icon={Download} className="flex-1">
-            Télécharger le reçu
+            Telecharger le recu
           </Button>
-          <Link to="/dashboard" className="flex-1">
-            <Button variant="primary" icon={ArrowRight} className="w-full">
-              Accéder à SignTrust
-            </Button>
-          </Link>
+          <Button
+            variant="primary"
+            icon={ArrowRight}
+            className="flex-1"
+            onClick={handleGo}
+            disabled={!autoLoginDone && !token}
+          >
+            Acceder a SignTrust
+          </Button>
         </div>
       </div>
 

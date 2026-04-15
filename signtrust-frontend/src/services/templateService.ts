@@ -4,7 +4,9 @@ export interface Template {
   id: number;
   name: string;
   description: string;
-  documentsCount: number;
+  documentsJson?: string | null;
+  signatoryRolesJson?: string | null;
+  fieldsJson?: string | null;
   usageCount: number;
   createdAt: string;
 }

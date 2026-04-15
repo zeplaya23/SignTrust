@@ -1,13 +1,11 @@
 import { api } from './api';
 
 export interface TeamMember {
-  id: string;
+  userId: string;
   email: string;
   firstName: string;
   lastName: string;
   role: string;
-  envelopeCount: number;
-  lastActive: string;
 }
 
 export const teamService = {

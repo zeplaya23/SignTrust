@@ -35,8 +35,9 @@ export default function VerifyOtp() {
       await authService.verifyOtp(email, otpCode);
       setOtpVerified(true);
       navigate('/subscribe/payment');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Code invalide ou expiré';
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message || 'Code invalide ou expiré';
       setError(msg);
     } finally {
       setLoading(false);

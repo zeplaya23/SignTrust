@@ -40,4 +40,7 @@ export const authService = {
 
   verifyOtp: (email: string, code: string) =>
     api.post<OtpResponse>('/auth/otp/verify', { email, code }).then((r) => r.data),
+
+  refresh: (refreshToken: string) =>
+    api.post<LoginResponse>('/auth/refresh', { refreshToken }).then((r) => r.data),
 };

@@ -42,8 +42,9 @@ export default function Payment() {
 
       setPaymentReference(resp.reference);
       navigate('/subscribe/success');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Erreur lors du paiement';
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr.response?.data?.message || 'Erreur lors du paiement';
       setError(msg);
     } finally {
       setLoading(false);

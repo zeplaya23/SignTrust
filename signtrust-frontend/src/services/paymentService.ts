@@ -29,5 +29,5 @@ export const paymentService = {
     api.post<PaymentInitResponse>('/payments/initialize', data).then((r) => r.data),
 
   verify: (reference: string) =>
-    api.get<PaymentVerifyResponse>(`/api/payments/verify/${reference}`).then((r) => r.data),
+    api.get<PaymentVerifyResponse>(`/payments/verify/${reference}`).then((r) => r.data),
 };

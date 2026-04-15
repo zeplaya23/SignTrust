@@ -182,6 +182,43 @@ public class AuthService {
         }
     }
 
+    public LoginResponse refresh(String refreshToken) {
+        String tokenUrl = keycloakUrl + "/realms/signtrust/protocol/openid-connect/token";
+
+        String formBody = "grant_type=refresh_token"
+                + "&client_id=signtrust-app"
+                + "&refresh_token=" + URLEncoder.encode(refreshToken, StandardCharsets.UTF_8);
+
+        try {
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(tokenUrl))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(formBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() >= 400) {
+                throw new WebApplicationException("Session expirée, veuillez vous reconnecter",
+                        Response.Status.UNAUTHORIZED);
+            }
+
+            String body = response.body();
+            String newAccessToken = extractJsonValue(body, "access_token");
+            String newRefreshToken = extractJsonValue(body, "refresh_token");
+            long expiresIn = Long.parseLong(extractJsonValue(body, "expires_in"));
+
+            return new LoginResponse(newAccessToken, newRefreshToken, expiresIn, null);
+        } catch (WebApplicationException e) {
+            throw e;
+        } catch (Exception e) {
+            LOG.error("Refresh token error", e);
+            throw new WebApplicationException("Erreur de rafraîchissement du token",
+                    Response.Status.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     private String extractJsonValue(String json, String key) {
         String searchKey = "\"" + key + "\"";
         int keyIndex = json.indexOf(searchKey);

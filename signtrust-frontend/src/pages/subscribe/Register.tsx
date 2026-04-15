@@ -84,8 +84,9 @@ export default function Register() {
       useSubscriptionStore.setState({ userId: resp.userId });
 
       navigate('/subscribe/verify');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.error || 'Erreur lors de l\'inscription';
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string; error?: string } } };
+      const msg = axiosErr.response?.data?.message || axiosErr.response?.data?.error || 'Erreur lors de l\'inscription';
       setError(msg);
     } finally {
       setLoading(false);

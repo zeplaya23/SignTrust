@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import EnvelopeList from './pages/envelopes/EnvelopeList';
 import NewEnvelope from './pages/envelopes/NewEnvelope';
 import EnvelopeDetail from './pages/envelopes/EnvelopeDetail';
+import SignVerify from './pages/sign/SignVerify';
 import SignView from './pages/sign/SignView';
 import SignSuccess from './pages/sign/SignSuccess';
 import Team from './pages/Team';
@@ -46,7 +47,8 @@ export default function App() {
           <Route path="/renewal" element={<Renewal />} />
 
           {/* Sign routes (no sidebar) */}
-          <Route path="/sign/:token" element={<SignView />} />
+          <Route path="/sign/:token" element={<SignVerify />} />
+          <Route path="/sign/:token/view" element={<SignView />} />
           <Route path="/sign/success" element={<SignSuccess />} />
 
           {/* App routes with sidebar */}

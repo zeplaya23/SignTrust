@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useSubscription } from '../hooks/useSubscription';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -31,23 +32,16 @@ export default function Settings() {
     reminderFrequency: '24h',
   });
 
-  // Subscription mock
-  const subscription = {
-    plan: 'Professionnel',
-    price: 15000,
-    paymentMethod: 'Mobile Money (Orange)',
-    nextBilling: '15 mai 2026',
-    used: 134,
-    max: 200,
-  };
-  const usagePercent = Math.round((subscription.used / subscription.max) * 100);
+  // Subscription
+  const { info: subscription } = useSubscription();
+  const usagePercent = subscription.max > 0 ? Math.round((subscription.used / subscription.max) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-bg p-6 lg:p-10">
+    <div>
       {/* Header */}
-      <h1 className="text-2xl font-bold text-txt mb-8">Paramètres</h1>
+      <h1 className="text-2xl font-bold text-txt mb-6">Paramètres</h1>
 
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-2xl space-y-6">
         {/* Section 1: Profile */}
         <Card padding="lg">
           <div className="flex items-center gap-3 mb-6">
@@ -228,18 +222,16 @@ export default function Settings() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Plan actuel</p>
-                <p className="text-sm font-medium text-txt">{subscription.plan}</p>
+                <p className="text-sm font-medium text-txt">{subscription.planName}</p>
               </div>
               <p className="text-lg font-bold text-accent">{subscription.price.toLocaleString('fr-FR')} <span className="text-sm font-normal text-txt-secondary">FCFA/mois</span></p>
             </div>
-            <div>
-              <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Moyen de paiement</p>
-              <p className="text-sm font-medium text-txt">{subscription.paymentMethod}</p>
-            </div>
-            <div>
-              <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prochaine facturation</p>
-              <p className="text-sm font-medium text-txt">{subscription.nextBilling}</p>
-            </div>
+            {subscription.endDate && (
+              <div>
+                <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prochaine facturation</p>
+                <p className="text-sm font-medium text-txt">{new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              </div>
+            )}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs text-txt-muted uppercase tracking-wider">Utilisation</p>

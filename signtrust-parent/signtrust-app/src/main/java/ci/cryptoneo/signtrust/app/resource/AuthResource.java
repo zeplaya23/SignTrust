@@ -58,6 +58,21 @@ public class AuthResource {
     }
 
     @POST
+    @Path("/refresh")
+    public Response refresh(RefreshRequest req) {
+        try {
+            LoginResponse resp = authService.refresh(req.refreshToken());
+            return Response.ok(resp).build();
+        } catch (WebApplicationException e) {
+            throw e;
+        } catch (Exception e) {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(ApiResponse.error("Erreur de rafraîchissement: " + e.getMessage()))
+                    .build();
+        }
+    }
+
+    @POST
     @Path("/otp/send")
     public Response sendOtp(OtpSendRequest req) {
         try {

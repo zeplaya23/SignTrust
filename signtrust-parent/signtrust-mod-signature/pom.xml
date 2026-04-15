@@ -34,5 +34,12 @@
             <groupId>ci.cryptoneo.signtrust</groupId>
             <artifactId>signtrust-mod-hsm</artifactId>
         </dependency>
+
+        <!-- Apache PDFBox for visual signature stamping -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.4</version>
+        </dependency>
     </dependencies>
 </project>

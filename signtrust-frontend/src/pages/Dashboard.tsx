@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell,
   FileText,
   Clock,
   CheckCircle2,
@@ -11,28 +10,12 @@ import {
   Copy,
   FolderOpen,
   Users,
+  Inbox,
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
-import Button from '../components/ui/Button';
-import { useAuthStore } from '../stores/useAuthStore';
+import { dashboardService } from '../services/dashboardService';
 import type { Envelope, EnvelopeStatus } from '../types/envelope';
-
-// Mock data
-const mockStats = {
-  totalEnvelopes: 24,
-  pending: 8,
-  signed: 14,
-  completionRate: 58,
-};
-
-const mockRecent: Envelope[] = [
-  { id: 1, name: 'Contrat de bail 2024', status: 'SENT', documentsCount: 2, signatoriesCount: 3, createdAt: '2026-04-12T10:00:00Z', expiresAt: '2026-04-20T10:00:00Z' },
-  { id: 2, name: 'NDA - Projet Alpha', status: 'COMPLETED', documentsCount: 1, signatoriesCount: 2, createdAt: '2026-04-11T14:30:00Z', expiresAt: '2026-04-25T14:30:00Z' },
-  { id: 3, name: 'Avenant contrat CDI', status: 'DRAFT', documentsCount: 3, signatoriesCount: 1, createdAt: '2026-04-10T09:00:00Z', expiresAt: '2026-04-30T09:00:00Z' },
-  { id: 4, name: 'Convention de stage', status: 'SENT', documentsCount: 1, signatoriesCount: 4, createdAt: '2026-04-09T16:00:00Z', expiresAt: '2026-04-18T16:00:00Z' },
-  { id: 5, name: 'Procuration notariale', status: 'CANCELLED', documentsCount: 2, signatoriesCount: 2, createdAt: '2026-04-08T11:00:00Z', expiresAt: '2026-04-22T11:00:00Z' },
-];
 
 function statusToBadge(status: EnvelopeStatus): 'pending' | 'signed' | 'rejected' | 'draft' {
   switch (status) {
@@ -47,16 +30,41 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+interface Stats {
+  totalEnvelopes: number;
+  pending: number;
+  signed: number;
+  completionRate: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const subscriptionStatus = useAuthStore((s) => s.subscriptionStatus);
-  const [stats] = useState(mockStats);
-  const [recent] = useState(mockRecent);
+  const [stats, setStats] = useState<Stats>({ totalEnvelopes: 0, pending: 0, signed: 0, completionRate: 0 });
+  const [recent, setRecent] = useState<Envelope[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [s, r] = await Promise.all([
+          dashboardService.getStats(),
+          dashboardService.getRecent(),
+        ]);
+        setStats(s);
+        setRecent(r);
+      } catch {
+        // API error — keep defaults (zeros)
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const metrics = [
     { label: 'Total enveloppes', value: stats.totalEnvelopes, color: 'border-primary', icon: FileText, iconColor: 'text-primary' },
     { label: 'En attente', value: stats.pending, color: 'border-warning', icon: Clock, iconColor: 'text-warning' },
-    { label: 'Signées', value: stats.signed, color: 'border-success', icon: CheckCircle2, iconColor: 'text-success' },
+    { label: 'Signees', value: stats.signed, color: 'border-success', icon: CheckCircle2, iconColor: 'text-success' },
     { label: 'Taux completion', value: `${stats.completionRate}%`, color: 'border-accent', icon: TrendingUp, iconColor: 'text-accent' },
   ];
 
@@ -65,10 +73,6 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-dark">Tableau de bord</h1>
-        <button className="relative p-2 rounded-xl hover:bg-white transition-colors">
-          <Bell size={20} className="text-txt-secondary" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full" />
-        </button>
       </div>
 
       {/* Metric cards */}
@@ -92,7 +96,7 @@ export default function Dashboard() {
         <div className="col-span-2">
           <Card padding="sm">
             <div className="flex items-center justify-between px-4 pt-3 pb-4">
-              <h2 className="text-base font-semibold text-dark">Enveloppes récentes</h2>
+              <h2 className="text-base font-semibold text-dark">Enveloppes recentes</h2>
               <button
                 onClick={() => navigate('/envelopes')}
                 className="text-sm text-primary font-medium hover:underline"
@@ -100,45 +104,62 @@ export default function Dashboard() {
                 Tout voir
               </button>
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-t border-border text-txt-secondary text-left">
-                  <th className="px-4 py-3 font-medium">Enveloppe</th>
-                  <th className="px-4 py-3 font-medium">Docs</th>
-                  <th className="px-4 py-3 font-medium">Signataires</th>
-                  <th className="px-4 py-3 font-medium">Statut</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((env) => (
-                  <tr
-                    key={env.id}
-                    className="border-t border-border hover:bg-bg/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/envelopes/${env.id}`)}
-                  >
-                    <td className="px-4 py-3 font-medium text-txt flex items-center gap-2">
-                      <FolderOpen size={16} className="text-txt-muted shrink-0" />
-                      {env.name}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center justify-center bg-primary-light text-primary text-xs font-semibold w-6 h-6 rounded-full">
-                        {env.documentsCount}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-txt-secondary">
-                      <span className="flex items-center gap-1">
-                        <Users size={14} /> {env.signatoriesCount}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge status={statusToBadge(env.status)} />
-                    </td>
-                    <td className="px-4 py-3 text-txt-secondary">{formatDate(env.createdAt)}</td>
+
+            {loading ? (
+              <div className="px-4 pb-6 text-sm text-txt-muted">Chargement...</div>
+            ) : recent.length === 0 ? (
+              <div className="px-4 pb-8 text-center">
+                <Inbox size={40} className="text-border mx-auto mb-3" />
+                <p className="text-sm text-txt-muted mb-1">Aucune enveloppe</p>
+                <p className="text-xs text-txt-muted mb-4">Creez votre premiere enveloppe pour commencer</p>
+                <button
+                  onClick={() => navigate('/envelopes/new')}
+                  className="inline-flex items-center gap-2 text-sm text-primary font-semibold hover:underline"
+                >
+                  <PlusCircle size={16} /> Nouvelle enveloppe
+                </button>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-t border-border text-txt-secondary text-left">
+                    <th className="px-4 py-3 font-medium">Enveloppe</th>
+                    <th className="px-4 py-3 font-medium">Docs</th>
+                    <th className="px-4 py-3 font-medium">Signataires</th>
+                    <th className="px-4 py-3 font-medium">Statut</th>
+                    <th className="px-4 py-3 font-medium">Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recent.map((env) => (
+                    <tr
+                      key={env.id}
+                      className="border-t border-border hover:bg-bg/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/envelopes/${env.id}`)}
+                    >
+                      <td className="px-4 py-3 font-medium text-txt flex items-center gap-2">
+                        <FolderOpen size={16} className="text-txt-muted shrink-0" />
+                        {env.name}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center justify-center bg-primary-light text-primary text-xs font-semibold w-6 h-6 rounded-full">
+                          {env.documentsCount ?? env.documents?.length ?? 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-txt-secondary">
+                        <span className="flex items-center gap-1">
+                          <Users size={14} /> {env.signatoriesCount ?? env.signatories?.length ?? 0}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge status={statusToBadge(env.status)} />
+                      </td>
+                      <td className="px-4 py-3 text-txt-secondary">{formatDate(env.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </Card>
         </div>
 
@@ -157,7 +178,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-txt">Nouvelle enveloppe</p>
-                  <p className="text-xs text-txt-muted">Créer et envoyer</p>
+                  <p className="text-xs text-txt-muted">Creer et envoyer</p>
                 </div>
               </button>
               <button
@@ -180,41 +201,11 @@ export default function Dashboard() {
                   <Copy size={18} className="text-success" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-txt">Modèle</p>
+                  <p className="text-sm font-medium text-txt">Modele</p>
                   <p className="text-xs text-txt-muted">Utiliser un template</p>
                 </div>
               </button>
             </div>
-          </Card>
-
-          {/* Subscription card */}
-          <Card padding="md" className="bg-accent-light border-accent/20">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-dark">Abonnement</h3>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-accent bg-white px-2 py-0.5 rounded-full">
-                {subscriptionStatus === 'ACTIVE' ? 'Pro' : subscriptionStatus === 'TRIAL' ? 'Essai' : 'Gratuit'}
-              </span>
-            </div>
-            <div className="mb-3">
-              <div className="flex items-center justify-between text-xs text-txt-secondary mb-1">
-                <span>Enveloppes utilisées</span>
-                <span className="font-semibold text-txt">24 / 50</span>
-              </div>
-              <div className="w-full h-2 bg-white rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full" style={{ width: '48%' }} />
-              </div>
-            </div>
-            <p className="text-xs text-txt-secondary mb-3">
-              Renouvellement : <span className="font-medium text-txt">15 mai 2026</span>
-            </p>
-            <Button
-              variant="accent"
-              size="sm"
-              className="w-full"
-              onClick={() => navigate('/renewal')}
-            >
-              Gérer
-            </Button>
           </Card>
         </div>
       </div>

@@ -2,6 +2,7 @@ package ci.cryptoneo.signtrust.app.service;
 
 import ci.cryptoneo.signtrust.app.dto.*;
 import ci.cryptoneo.signtrust.app.entity.*;
+import ci.cryptoneo.signtrust.audit.AuditLogEntity;
 
 import java.util.Collections;
 import java.util.List;
@@ -14,7 +15,7 @@ public final class DtoMapper {
 
     private DtoMapper() {}
 
-    public static EnvelopeDto toEnvelopeDto(EnvelopeEntity e) {
+    public static EnvelopeDto toEnvelopeDto(EnvelopeEntity e, List<AuditLogEntity> auditLogs) {
         List<DocumentDto> docs = e.getDocuments() != null
                 ? e.getDocuments().stream().map(DtoMapper::toDocumentDto).collect(Collectors.toList())
                 : Collections.emptyList();
@@ -30,21 +31,37 @@ public final class DtoMapper {
                 .collect(Collectors.toList())
                 : Collections.emptyList();
 
+        int docsCount = e.getDocuments() != null ? e.getDocuments().size() : 0;
+        int sigsCount = e.getSignatories() != null ? e.getSignatories().size() : 0;
+
+        List<AuditLogDto> trail = auditLogs != null
+                ? auditLogs.stream().map(DtoMapper::toAuditLogDto).collect(Collectors.toList())
+                : Collections.emptyList();
+
         return new EnvelopeDto(
                 e.getId(), e.getName(), e.getStatus(), e.getCreatedBy(),
                 e.getMessage(), e.getSigningOrder(), e.getExpiresAt(),
                 e.getCreatedAt(), e.getUpdatedAt(),
-                docs, sigs, fields
+                docsCount, sigsCount,
+                docs, sigs, fields, trail
         );
     }
 
     public static EnvelopeDto toEnvelopeDtoLight(EnvelopeEntity e) {
+        int docsCount = e.getDocuments() != null ? e.getDocuments().size() : 0;
+        int sigsCount = e.getSignatories() != null ? e.getSignatories().size() : 0;
+
         return new EnvelopeDto(
                 e.getId(), e.getName(), e.getStatus(), e.getCreatedBy(),
                 e.getMessage(), e.getSigningOrder(), e.getExpiresAt(),
                 e.getCreatedAt(), e.getUpdatedAt(),
-                null, null, null
+                docsCount, sigsCount,
+                null, null, null, null
         );
+    }
+
+    public static AuditLogDto toAuditLogDto(AuditLogEntity a) {
+        return new AuditLogDto(a.getId(), a.getAction(), a.getUserId(), a.getDetails(), a.getCreatedAt());
     }
 
     public static DocumentDto toDocumentDto(DocumentEntity d) {
