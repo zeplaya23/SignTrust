@@ -1,0 +1,35 @@
+{
+  "clientId": "signtrust-admin-console",
+  "name": "SignTrust SuperAdmin Console",
+  "description": "Public client for the SuperAdmin Console SPA (realm master)",
+  "enabled": true,
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "protocol": "openid-connect",
+  "rootUrl": "",
+  "baseUrl": "/admin/dashboard",
+  "redirectUris": [
+    "http://localhost:5174/*",
+    "http://localhost:5080/admin/*"
+  ],
+  "webOrigins": [
+    "http://localhost:5174",
+    "http://localhost:5080"
+  ],
+  "defaultClientScopes": [
+    "web-origins",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "optionalClientScopes": [
+    "offline_access"
+  ],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "http://localhost:5174/*##http://localhost:5080/admin/*"
+  }
+}
