@@ -15,7 +15,7 @@ public class HealthResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> status() {
         return Map.of(
-            "application", "diSign Parapheur",
+            "application", "DigiSign Parapheur",
             "version", "1.0.0-SNAPSHOT",
             "status", "UP",
             "timestamp", Instant.now().toString()

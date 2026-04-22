@@ -43,10 +43,10 @@ public class OtpService {
 
         // Send email via Mailpit
         mailer.send(Mail.withHtml(email,
-                "diSign Parapheur — Code de vérification",
+                "DigiSign Parapheur — Code de vérification",
                 "<div style='font-family:Inter,system-ui,sans-serif;max-width:460px;margin:0 auto;padding:0'>"
                 + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
-                + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>diSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
                 + "</div>"
                 + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                 + "<p style='color:#1E293B;font-size:15px;margin:0 0 8px'>Votre code de vérification</p>"

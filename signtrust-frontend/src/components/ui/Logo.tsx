@@ -23,8 +23,7 @@ export default function Logo({ size = "md", variant = "default" }: LogoProps) {
     <div className="flex items-center gap-2">
       <Shield size={config.icon} className={isLight ? "text-white" : "text-primary"} />
       <div className={clsx("font-bold leading-none", config.text)}>
-        <span className={isLight ? "text-white" : "text-dark"}>di</span>
-        <span className={isLight ? "text-white" : "text-primary"}>Sign</span>
+        <span className={isLight ? "text-white" : "text-primary"}>DigiSign</span>
         <span className={clsx("font-normal ml-1", isLight ? "text-white/60" : "text-txt-secondary")} style={{ fontSize: '0.65em' }}>Parapheur</span>
       </div>
     </div>

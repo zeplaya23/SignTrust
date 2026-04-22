@@ -11,7 +11,7 @@ export default function TopBar({ currentStep, stepLabel }: TopBarProps) {
       <div className="flex items-center gap-3">
         <Logo size="sm" />
         <div className="w-px h-6 bg-border" />
-        <span className="text-sm font-semibold text-dark">diSign <span className="font-normal text-txt-secondary">Parapheur</span></span>
+        <span className="text-sm font-semibold text-dark">DigiSign <span className="font-normal text-txt-secondary">Parapheur</span></span>
       </div>
 
       <span className="text-sm text-txt-secondary">

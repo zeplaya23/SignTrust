@@ -66,10 +66,10 @@ public class MockPaymentService {
             }
 
             mailer.send(Mail.withHtml(user.getEmail(),
-                    "diSign Parapheur — Confirmation d'abonnement",
+                    "DigiSign Parapheur — Confirmation d'abonnement",
                     "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
                     + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
-                    + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>diSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                    + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
                     + "</div>"
                     + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                     + "<p style='color:#1E293B;font-size:18px;font-weight:700;margin:0 0 4px'>Bienvenue !</p>"

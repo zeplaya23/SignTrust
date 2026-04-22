@@ -90,7 +90,7 @@ export default function Landing() {
               Signez vos documents en ligne, en toute confiance
             </h1>
             <p className="mt-2 text-base text-txt-secondary max-w-2xl mx-auto">
-              diSign Parapheur est la plateforme de signature électronique sécurisée, conforme eIDAS et UEMOA.
+              DigiSign Parapheur est la plateforme de signature électronique sécurisée, conforme eIDAS et UEMOA.
             </p>
           </div>
 

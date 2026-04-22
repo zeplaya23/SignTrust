@@ -88,11 +88,11 @@ public class TeamResource {
             // Send invitation email
             String html = "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
                     + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
-                    + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>diSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                    + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
                     + "</div>"
                     + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                     + "<p style='color:#1E293B;font-size:15px;margin:0 0 16px'>Bonjour " + req.firstName() + ",</p>"
-                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Vous avez ete invite(e) a rejoindre votre equipe sur diSign Parapheur.</p>"
+                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Vous avez ete invite(e) a rejoindre votre equipe sur DigiSign Parapheur.</p>"
                     + "<div style='background:#F0F9FF;border-radius:12px;padding:20px;text-align:center;margin:0 0 20px'>"
                     + "<p style='color:#64748B;font-size:12px;margin:0 0 8px'>Votre mot de passe temporaire</p>"
                     + "<span style='font-size:22px;font-weight:800;letter-spacing:3px;color:#0083BF'>" + tempPassword + "</span>"
@@ -101,7 +101,7 @@ public class TeamResource {
                     + "</div>"
                     + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
                     + "</div>";
-            notificationService.sendEmail(req.email(), "diSign Parapheur — Invitation equipe", html);
+            notificationService.sendEmail(req.email(), "DigiSign Parapheur — Invitation equipe", html);
 
             return Response.status(Response.Status.CREATED)
                     .entity(new TeamMemberDto(userId, req.email(), req.firstName(), req.lastName(), req.role()))
