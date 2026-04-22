@@ -1,11 +1,13 @@
 package ci.cryptoneo.signtrust.app.resource;
 
 import ci.cryptoneo.signtrust.app.dto.*;
+import ci.cryptoneo.signtrust.app.entity.UserProfileEntity;
 import ci.cryptoneo.signtrust.iam.KeycloakAdminService;
 import ci.cryptoneo.signtrust.iam.SignTrustIdentity;
 import ci.cryptoneo.signtrust.notification.NotificationService;
 import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -16,6 +18,8 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Authenticated
 @Path("/api/team")
@@ -37,26 +41,45 @@ public class TeamResource {
     @Inject
     NotificationService notificationService;
 
+    @Inject
+    EntityManager em;
+
     @GET
     public Response list() {
         String realmName = "signtrust";
+        String tenantId = identity.getTenantId();
+        String userId = identity.getUserId();
+        System.out.println("[TEAM] list called — tenantId=" + tenantId + ", userId=" + userId);
         try {
-            List<UserRepresentation> users = keycloak.realm(realmName).users().list(0, 100);
-            List<TeamMemberDto> members = users.stream().map(u -> {
-                // Get the first realm role that matches our known roles
-                String role = "member";
-                try {
-                    List<RoleRepresentation> roles = keycloak.realm(realmName).users()
-                            .get(u.getId()).roles().realmLevel().listEffective();
-                    for (RoleRepresentation r : roles) {
-                        if ("admin".equals(r.getName()) || "manager".equals(r.getName()) || "member".equals(r.getName())) {
-                            role = r.getName();
-                            break;
-                        }
-                    }
-                } catch (Exception ignored) {}
-                return new TeamMemberDto(u.getId(), u.getEmail(), u.getFirstName(), u.getLastName(), role);
-            }).toList();
+            // Only list users belonging to the same tenant
+            List<UserProfileEntity> tenantUsers = em.createQuery(
+                    "SELECT u FROM UserProfileEntity u WHERE u.tenantId = :tid", UserProfileEntity.class)
+                    .setParameter("tid", tenantId)
+                    .getResultList();
+
+            Set<String> tenantKeycloakIds = tenantUsers.stream()
+                    .map(UserProfileEntity::getKeycloakId)
+                    .collect(Collectors.toSet());
+            System.out.println("[TEAM] tenantUsers=" + tenantUsers.size() + ", keycloakIds=" + tenantKeycloakIds);
+
+            List<UserRepresentation> allUsers = keycloak.realm(realmName).users().list(0, 500);
+            System.out.println("[TEAM] allKeycloakUsers=" + allUsers.size());
+            List<TeamMemberDto> members = allUsers.stream()
+                    .filter(u -> tenantKeycloakIds.contains(u.getId()))
+                    .map(u -> {
+                        String role = "member";
+                        try {
+                            List<RoleRepresentation> roles = keycloak.realm(realmName).users()
+                                    .get(u.getId()).roles().realmLevel().listEffective();
+                            for (RoleRepresentation r : roles) {
+                                if ("admin".equals(r.getName()) || "manager".equals(r.getName()) || "member".equals(r.getName())) {
+                                    role = r.getName();
+                                    break;
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                        return new TeamMemberDto(u.getId(), u.getEmail(), u.getFirstName(), u.getLastName(), role);
+                    }).toList();
             return Response.ok(members).build();
         } catch (Exception e) {
             LOG.errorf(e, "Failed to list team members");
@@ -68,6 +91,7 @@ public class TeamResource {
 
     @POST
     @Path("/invite")
+    @jakarta.transaction.Transactional
     public Response invite(TeamInviteRequest req) {
         try {
             String tenantId = identity.getTenantId();
@@ -84,6 +108,15 @@ public class TeamResource {
                     LOG.warnf("Could not assign role %s to user %s: %s", req.role(), userId, e.getMessage());
                 }
             }
+
+            // Save user profile in DB with same tenantId
+            UserProfileEntity profile = new UserProfileEntity();
+            profile.setKeycloakId(userId);
+            profile.setTenantId(tenantId);
+            profile.setEmail(req.email());
+            profile.setFirstName(req.firstName());
+            profile.setLastName(req.lastName());
+            em.persist(profile);
 
             // Send invitation email
             String html = "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"

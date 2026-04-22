@@ -188,7 +188,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         doc.setOrderIndex(envelope.getDocuments().size());
         em.persist(doc);
 
-        auditService.log(tenantId, "DOCUMENT_ADDED", envelope.getCreatedBy(), "DOCUMENT", doc.getId() != null ? doc.getId().toString() : "new", "Document added: " + fileName);
+        auditService.log(tenantId, "DOCUMENT_ADDED", envelope.getCreatedBy(), "ENVELOPE", envelope.getId().toString(), "Document ajouté : " + fileName);
         return doc;
     }
 
@@ -483,8 +483,8 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         sig.setSignedAt(LocalDateTime.now());
         em.merge(sig);
 
-        auditService.log(envelope.getTenantId(), "DOCUMENT_SIGNED", sig.getEmail(), "SIGNATORY", sig.getId().toString(),
-                "Signed by " + sig.getEmail());
+        auditService.log(envelope.getTenantId(), "DOCUMENT_SIGNED", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
+                "Signé par " + sig.getFirstName() + " " + sig.getLastName() + " (" + sig.getEmail() + ")");
 
         // Check if all signatories have signed
         checkEnvelopeCompletion(envelope);
@@ -506,8 +506,8 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         sig.setSignedAt(LocalDateTime.now());
         em.merge(sig);
 
-        auditService.log(envelope.getTenantId(), "DOCUMENT_REJECTED", sig.getEmail(), "SIGNATORY", sig.getId().toString(),
-                "Rejected by " + sig.getEmail() + (reason != null ? ": " + reason : ""));
+        auditService.log(envelope.getTenantId(), "DOCUMENT_REJECTED", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
+                "Refusé par " + sig.getFirstName() + " " + sig.getLastName() + " (" + sig.getEmail() + ")" + (reason != null ? " — Motif : " + reason : ""));
     }
 
     private void checkEnvelopeCompletion(EnvelopeEntity envelope) {

@@ -42,10 +42,10 @@ function formatDateTime(iso: string) {
 const ACTION_LABELS: Record<string, string> = {
   ENVELOPE_CREATED: 'Enveloppe créée',
   DOCUMENT_ADDED: 'Document ajouté',
-  ENVELOPE_SENT: 'Enveloppe envoyée aux signataires',
-  DOCUMENT_SIGNED: 'Document signé',
+  ENVELOPE_SENT: 'Envoyée aux signataires',
+  DOCUMENT_SIGNED: 'Signature apposée',
   DOCUMENT_REJECTED: 'Signature refusée',
-  ENVELOPE_COMPLETED: 'Tous les signataires ont signé',
+  ENVELOPE_COMPLETED: 'Signature terminée',
   ENVELOPE_CANCELLED: 'Enveloppe annulée',
   ENVELOPE_DELETED: 'Enveloppe supprimée',
 };

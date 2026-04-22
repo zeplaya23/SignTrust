@@ -550,6 +550,184 @@ public class AdminService {
         return new AdminDashboardDto(0, 0, (int) envelopes, 0, (int) signatures, sigGrowth, revenue, 0, 0);
     }
 
+    // ═══════════════════════════════════════════
+    // Tenant Detail — enriched endpoints
+    // ═══════════════════════════════════════════
+
+    public TenantDetailedStatsDto getTenantDetailedStats(String tenantId) {
+        try {
+            LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
+
+            // Signatures this month + growth
+            long sigThisMonth = ((Number) em.createQuery(
+                "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.status = 'SIGNED' AND s.envelope.tenantId = :tid AND s.signedAt >= :start"
+            ).setParameter("tid", tenantId).setParameter("start", startOfMonth).getSingleResult()).longValue();
+
+            long sigLastMonth = ((Number) em.createQuery(
+                "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.status = 'SIGNED' AND s.envelope.tenantId = :tid AND s.signedAt >= :start AND s.signedAt < :end"
+            ).setParameter("tid", tenantId).setParameter("start", startOfMonth.minusMonths(1)).setParameter("end", startOfMonth).getSingleResult()).longValue();
+
+            double sigGrowth = sigLastMonth > 0 ? Math.round((sigThisMonth - sigLastMonth) * 1000.0 / sigLastMonth) / 10.0 : 0;
+
+            // Completion rate: COMPLETED / (SENT + COMPLETED + CANCELLED)
+            long completed = ((Number) em.createQuery(
+                "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.status = 'COMPLETED'"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+            long totalRelevant = ((Number) em.createQuery(
+                "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.status IN ('SENT', 'COMPLETED', 'CANCELLED')"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+            double completionRate = totalRelevant > 0 ? Math.round(completed * 1000.0 / totalRelevant) / 10.0 : 0;
+
+            // Rejection rate: REJECTED signatories / all signatories (excluding CC)
+            long rejectedSigs = ((Number) em.createQuery(
+                "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.status = 'REJECTED' AND s.envelope.tenantId = :tid AND s.role != 'CC'"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+            long totalSigs = ((Number) em.createQuery(
+                "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.envelope.tenantId = :tid AND s.role != 'CC'"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+            double rejectionRate = totalSigs > 0 ? Math.round(rejectedSigs * 1000.0 / totalSigs) / 10.0 : 0;
+
+            // Documents count
+            long documentsCount = ((Number) em.createQuery(
+                "SELECT COUNT(d) FROM DocumentEntity d WHERE d.envelope.tenantId = :tid"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+            // MRR: most recent ACTIVE or TRIAL subscription amount
+            long mrrAmount = 0;
+            try {
+                Long amount = (Long) em.createQuery(
+                    "SELECT sub.amount FROM SubscriptionEntity sub " +
+                    "WHERE sub.userId IN (SELECT u.id FROM UserProfileEntity u WHERE u.tenantId = :tid) " +
+                    "AND sub.status IN ('ACTIVE', 'TRIAL') ORDER BY sub.createdAt DESC"
+                ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
+                if (amount != null) mrrAmount = amount;
+            } catch (NoResultException ignored) {}
+
+            // Last activity
+            String lastActivity = null;
+            try {
+                LocalDateTime lastAudit = (LocalDateTime) em.createQuery(
+                    "SELECT MAX(a.createdAt) FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.tenantId = :tid"
+                ).setParameter("tid", tenantId).getSingleResult();
+                if (lastAudit != null) {
+                    lastActivity = lastAudit.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                }
+            } catch (Exception ignored) {}
+
+            return new TenantDetailedStatsDto(sigThisMonth, sigGrowth, completionRate, rejectionRate, documentsCount, mrrAmount, lastActivity);
+        } catch (Exception e) {
+            LOG.warnf(e, "Failed to get detailed stats for tenant %s", tenantId);
+            return new TenantDetailedStatsDto(0, 0, 0, 0, 0, 0, null);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<TenantBillingDto> getTenantBilling(String tenantId) {
+        try {
+            List<Object> subs = em.createQuery(
+                "SELECT sub FROM SubscriptionEntity sub " +
+                "WHERE sub.userId IN (SELECT u.id FROM UserProfileEntity u WHERE u.tenantId = :tid) " +
+                "ORDER BY sub.createdAt DESC"
+            ).setParameter("tid", tenantId).getResultList();
+
+            return subs.stream().map(obj -> {
+                ci.cryptoneo.signtrust.app.entity.SubscriptionEntity sub = (ci.cryptoneo.signtrust.app.entity.SubscriptionEntity) obj;
+                return new TenantBillingDto(
+                    sub.getId(),
+                    sub.getPlanId(),
+                    sub.getStatus(),
+                    sub.getPaymentMethod(),
+                    sub.getPaymentReference(),
+                    sub.getAmount() != null ? sub.getAmount() : 0,
+                    sub.getStartDate() != null ? sub.getStartDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+                    sub.getEndDate() != null ? sub.getEndDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+                    sub.getCreatedAt() != null ? sub.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+                );
+            }).toList();
+        } catch (Exception e) {
+            LOG.warnf(e, "Failed to get billing for tenant %s", tenantId);
+            return Collections.emptyList();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<TenantEnvelopeSummaryDto> getTenantRecentEnvelopes(String tenantId) {
+        try {
+            List<ci.cryptoneo.signtrust.app.entity.EnvelopeEntity> envelopes = em.createQuery(
+                "SELECT e FROM EnvelopeEntity e WHERE e.tenantId = :tid ORDER BY e.createdAt DESC",
+                ci.cryptoneo.signtrust.app.entity.EnvelopeEntity.class
+            ).setParameter("tid", tenantId).setMaxResults(10).getResultList();
+
+            return envelopes.stream().map(e -> {
+                long total = ((Number) em.createQuery(
+                    "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.envelope.id = :eid AND s.role != 'CC'"
+                ).setParameter("eid", e.getId()).getSingleResult()).longValue();
+
+                long signed = ((Number) em.createQuery(
+                    "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.envelope.id = :eid AND s.status = 'SIGNED'"
+                ).setParameter("eid", e.getId()).getSingleResult()).longValue();
+
+                long rejected = ((Number) em.createQuery(
+                    "SELECT COUNT(s) FROM SignatoryEntity s WHERE s.envelope.id = :eid AND s.status = 'REJECTED'"
+                ).setParameter("eid", e.getId()).getSingleResult()).longValue();
+
+                // Resolve createdBy to user name
+                String createdBy = e.getCreatedBy();
+                try {
+                    UserProfileEntity user = (UserProfileEntity) em.createQuery(
+                        "SELECT u FROM UserProfileEntity u WHERE u.keycloakId = :kid"
+                    ).setParameter("kid", e.getCreatedBy()).setMaxResults(1).getSingleResult();
+                    if (user != null) {
+                        String name = (user.getFirstName() != null ? user.getFirstName() : "") +
+                                      (user.getLastName() != null ? " " + user.getLastName() : "");
+                        if (!name.isBlank()) createdBy = name.trim();
+                    }
+                } catch (Exception ignored) {}
+
+                return new TenantEnvelopeSummaryDto(
+                    e.getId(),
+                    e.getName(),
+                    e.getStatus(),
+                    createdBy,
+                    e.getCreatedAt() != null ? e.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+                    (int) total,
+                    (int) signed,
+                    (int) rejected
+                );
+            }).toList();
+        } catch (Exception e) {
+            LOG.warnf(e, "Failed to get recent envelopes for tenant %s", tenantId);
+            return Collections.emptyList();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<AuditLogDto> getTenantAuditLog(String tenantId) {
+        try {
+            List<ci.cryptoneo.signtrust.audit.AuditLogEntity> logs = em.createQuery(
+                "SELECT a FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.tenantId = :tid ORDER BY a.createdAt DESC",
+                ci.cryptoneo.signtrust.audit.AuditLogEntity.class
+            ).setParameter("tid", tenantId).setMaxResults(15).getResultList();
+
+            return logs.stream().map(a -> new AuditLogDto(
+                a.getId(),
+                a.getAction(),
+                a.getUserId(),
+                a.getEntityType(),
+                a.getEntityId(),
+                a.getDetails(),
+                a.getCreatedAt() != null ? a.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+            )).toList();
+        } catch (Exception e) {
+            LOG.warnf(e, "Failed to get audit log for tenant %s", tenantId);
+            return Collections.emptyList();
+        }
+    }
+
     public void resetUserMfa(String tenantId, String userId) {
         try {
             // Find user in Keycloak and remove credentials

@@ -61,7 +61,13 @@ public final class DtoMapper {
     }
 
     public static AuditLogDto toAuditLogDto(AuditLogEntity a) {
-        return new AuditLogDto(a.getId(), a.getAction(), a.getUserId(), a.getDetails(), a.getCreatedAt());
+        return new AuditLogDto(
+                a.getId(), a.getAction(), a.getUserId(),
+                a.getEntityType(), a.getEntityId(), a.getDetails(),
+                a.getCreatedAt() != null
+                        ? a.getCreatedAt().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        : null
+        );
     }
 
     public static DocumentDto toDocumentDto(DocumentEntity d) {

@@ -72,6 +72,30 @@ public class AdminTenantResource {
         return Response.ok(adminService.getTenantStats(tenantId)).build();
     }
 
+    @GET
+    @Path("/{id}/detailed-stats")
+    public Response detailedStats(@PathParam("id") String tenantId) {
+        return Response.ok(adminService.getTenantDetailedStats(tenantId)).build();
+    }
+
+    @GET
+    @Path("/{id}/billing")
+    public Response billing(@PathParam("id") String tenantId) {
+        return Response.ok(adminService.getTenantBilling(tenantId)).build();
+    }
+
+    @GET
+    @Path("/{id}/envelopes")
+    public Response recentEnvelopes(@PathParam("id") String tenantId) {
+        return Response.ok(adminService.getTenantRecentEnvelopes(tenantId)).build();
+    }
+
+    @GET
+    @Path("/{id}/audit-log")
+    public Response auditLog(@PathParam("id") String tenantId) {
+        return Response.ok(adminService.getTenantAuditLog(tenantId)).build();
+    }
+
     @DELETE
     @Path("/{id}/users/{uid}/mfa")
     public Response resetMfa(@PathParam("id") String tenantId, @PathParam("uid") String userId) {
