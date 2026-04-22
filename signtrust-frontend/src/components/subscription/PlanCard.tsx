@@ -6,13 +6,14 @@ interface PlanCardProps {
   plan: Plan;
   selected: boolean;
   onSelect: (plan: Plan) => void;
+  highlighted?: boolean;
 }
 
 function formatPrice(price: number): string {
   return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
+export default function PlanCard({ plan, selected, onSelect, highlighted }: PlanCardProps) {
   const isClickable = !plan.contactOnly;
 
   return (
@@ -22,7 +23,11 @@ export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
         'relative rounded-2xl bg-white p-6 transition-all',
         isClickable && 'cursor-pointer',
         plan.contactOnly && 'opacity-50 cursor-not-allowed',
-        selected ? 'border-2 shadow-md' : 'border border-border',
+        selected
+          ? 'border-2 shadow-md'
+          : highlighted
+            ? 'border-2 border-accent shadow-sm'
+            : 'border border-border',
       )}
       style={selected ? { borderColor: plan.color } : undefined}
     >
@@ -35,19 +40,25 @@ export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
         </div>
       )}
 
-      {plan.popular && !selected && (
+      {highlighted && !selected && (
+        <span className="absolute top-4 right-4 bg-accent-light text-accent text-xs font-semibold px-2.5 py-1 rounded-full">
+          Essai gratuit
+        </span>
+      )}
+
+      {plan.popular && !selected && !highlighted && (
         <span className="absolute top-4 right-4 bg-accent-light text-accent text-xs font-semibold px-2.5 py-1 rounded-full">
           Populaire
         </span>
       )}
 
-      <h3 className="font-bold text-lg text-txt">{plan.name}</h3>
+      <h3 className="font-bold text-lg text-txt pr-24">{plan.name}</h3>
 
       <div className="mt-2">
         {plan.contactOnly ? (
           <span className="text-txt-muted font-medium">Contactez-nous</span>
         ) : plan.price === 0 ? (
-          <span className="text-2xl font-bold text-txt">Gratuit</span>
+          <span className="text-2xl font-bold text-accent">Gratuit</span>
         ) : (
           <div className="flex items-baseline gap-1">
             <span className="text-2xl font-bold text-txt">

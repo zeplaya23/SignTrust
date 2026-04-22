@@ -87,10 +87,10 @@ public class TeamResource {
 
             // Send invitation email
             String html = "<p>Bonjour " + req.firstName() + ",</p>"
-                    + "<p>Vous avez ete invite a rejoindre SignTrust.</p>"
+                    + "<p>Vous avez ete invite a rejoindre DigiSign.</p>"
                     + "<p>Votre mot de passe temporaire: <strong>" + tempPassword + "</strong></p>"
                     + "<p>Veuillez le modifier lors de votre premiere connexion.</p>";
-            notificationService.sendEmail(req.email(), "Invitation SignTrust", html);
+            notificationService.sendEmail(req.email(), "Invitation DigiSign", html);
 
             return Response.status(Response.Status.CREATED)
                     .entity(new TeamMemberDto(userId, req.email(), req.firstName(), req.lastName(), req.role()))
@@ -110,7 +110,7 @@ public class TeamResource {
             String tenantId = identity.getTenantId();
             String realmName = "signtrust";
 
-            // Remove existing SignTrust roles
+            // Remove existing DigiSign roles
             List<RoleRepresentation> currentRoles = keycloak.realm(realmName).users()
                     .get(userId).roles().realmLevel().listEffective();
             List<RoleRepresentation> toRemove = currentRoles.stream()

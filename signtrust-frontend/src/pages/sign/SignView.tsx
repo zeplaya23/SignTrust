@@ -82,6 +82,10 @@ export default function SignView() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBase64, setPreviewBase64] = useState<string | null>(null);
+
   // Fetch signing info
   const fetchInfo = useCallback(async (t: string, signal: AbortSignal) => {
     setLoading(true);
@@ -228,14 +232,19 @@ export default function SignView() {
 
   const hasSignature = activeTab === 'draw' ? hasDrawn : textSignature.trim().length > 0;
 
+  const openPreview = () => {
+    const sig = getSignatureBase64();
+    if (!sig) return;
+    setPreviewBase64(sig);
+    setShowPreview(true);
+  };
+
   const handleSign = async () => {
-    if (!token) return;
-    const signatureBase64 = getSignatureBase64();
-    if (!signatureBase64) return;
+    if (!token || !previewBase64) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await signService.sign(token, signatureBase64);
+      await signService.sign(token, previewBase64);
       navigate('/sign/success', {
         state: { documentCount: info?.documents.length ?? 0 },
         replace: true,
@@ -244,6 +253,7 @@ export default function SignView() {
       setSubmitError('Erreur lors de la signature. Veuillez réessayer.');
     } finally {
       setSubmitting(false);
+      setShowPreview(false);
     }
   };
 
@@ -574,7 +584,7 @@ export default function SignView() {
           <Button
             variant="accent"
             size="md"
-            onClick={handleSign}
+            onClick={openPreview}
             disabled={submitting || !hasSignature}
           >
             {submitting ? (
@@ -627,6 +637,62 @@ export default function SignView() {
                   </span>
                 ) : (
                   'Confirmer le refus'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Signature preview modal */}
+      {showPreview && previewBase64 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6">
+            <h2 className="text-lg font-bold text-dark mb-1">Aperçu de votre signature</h2>
+            <p className="text-sm text-txt-secondary mb-4">
+              Vérifiez votre signature avant de confirmer.
+            </p>
+
+            {/* Signature preview */}
+            <div className="border-2 border-dashed border-border rounded-xl p-4 bg-bg mb-4 flex items-center justify-center">
+              <img src={previewBase64} alt="Aperçu signature" className="max-h-[150px] max-w-full object-contain" />
+            </div>
+
+            <div className="bg-primary/5 rounded-xl p-4 mb-4">
+              <p className="text-sm text-txt">
+                <span className="font-semibold">{info.signatoryName}</span>, vous êtes sur le point de signer{' '}
+                <span className="font-semibold">{info.documents.length} document{info.documents.length > 1 ? 's' : ''}</span>{' '}
+                de l'enveloppe <span className="font-semibold">"{info.envelopeName}"</span>.
+              </p>
+              <p className="text-xs text-txt-muted mt-2">
+                Cette action est définitive et vaut consentement légal.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                size="md"
+                className="flex-1"
+                onClick={() => setShowPreview(false)}
+                disabled={submitting}
+              >
+                Modifier
+              </Button>
+              <Button
+                variant="accent"
+                size="md"
+                className="flex-1"
+                onClick={handleSign}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    Signature en cours...
+                  </span>
+                ) : (
+                  'Confirmer la signature'
                 )}
               </Button>
             </div>

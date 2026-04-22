@@ -32,7 +32,7 @@ public class KeycloakAdminService {
         RealmRepresentation realm = new RealmRepresentation();
         realm.setRealm(realmName);
         realm.setEnabled(true);
-        realm.setDisplayName("SignTrust — " + tenantId);
+        realm.setDisplayName("DigiSign — " + tenantId);
 
         // Login theme
         realm.setLoginTheme("keycloak");

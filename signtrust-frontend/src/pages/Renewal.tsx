@@ -1,27 +1,38 @@
 import { useState } from 'react';
 import { AlertTriangle, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import Button from '../components/ui/Button';
+import { useSubscription } from '../hooks/useSubscription';
+import { useAuthStore } from '../stores/useAuthStore';
 
 type RenewalOption = 'renew' | 'upgrade';
 
 export default function Renewal() {
   const [option, setOption] = useState<RenewalOption>('renew');
+  const navigate = useNavigate();
+  const { info: subscription } = useSubscription();
+  const logout = useAuthStore((s) => s.logout);
 
-  const expirationDate = new Date(2026, 3, 1).toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  const expirationDate = subscription.endDate
+    ? new Date(subscription.endDate).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '—';
 
   const handleLogout = () => {
-    // TODO: integrate logout
-    window.location.href = '/';
+    logout();
+    navigate('/login');
   };
 
   const handleRenew = () => {
-    // TODO: integrate Paystack renewal
-    console.log('Renew with option:', option);
+    if (option === 'upgrade') {
+      navigate('/subscribe/plan');
+    } else {
+      navigate('/subscribe/payment');
+    }
   };
 
   return (
@@ -38,7 +49,7 @@ export default function Renewal() {
           Abonnement expiré
         </h1>
         <p className="text-sm text-txt-secondary text-center mb-8">
-          Votre abonnement a expiré le {expirationDate}.
+          Votre abonnement <strong>{subscription.planName}</strong> a expiré le {expirationDate}.
         </p>
 
         {/* Options */}
@@ -64,9 +75,11 @@ export default function Renewal() {
                 )}
               </div>
               <div>
-                <p className="font-semibold text-dark">Renouveler le même plan</p>
+                <p className="font-semibold text-dark">Renouveler le plan {subscription.planName}</p>
                 <p className="text-sm text-txt-secondary mt-0.5">
-                  Continuez avec votre abonnement actuel
+                  {subscription.price > 0
+                    ? `${subscription.price.toLocaleString('fr-FR')} FCFA/mois`
+                    : 'Gratuit'}
                 </p>
               </div>
             </div>
@@ -93,9 +106,9 @@ export default function Renewal() {
                 )}
               </div>
               <div>
-                <p className="font-semibold text-dark">Upgrader mon plan</p>
+                <p className="font-semibold text-dark">Changer de plan</p>
                 <p className="text-sm text-txt-secondary mt-0.5">
-                  Passez à un plan supérieur avec plus de fonctionnalités
+                  Passez à un plan supérieur avec plus de fonctionnalit��s
                 </p>
               </div>
             </div>
@@ -120,7 +133,7 @@ export default function Renewal() {
             Déconnexion
           </Button>
           <Button variant="accent" onClick={handleRenew}>
-            Renouveler — Payer avec Paystack
+            {option === 'upgrade' ? 'Choisir un plan' : 'Renouveler — Payer'}
           </Button>
         </div>
       </div>

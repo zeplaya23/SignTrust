@@ -1,4 +1,4 @@
-export type SubscriptionStatus = 'ACTIVE' | 'TRIAL' | 'EXPIRED' | 'NONE';
+export type SubscriptionStatus = 'ACTIVE' | 'TRIAL' | 'EXPIRED' | 'CANCELLED' | 'NONE';
 
 export type PaymentMethod = 'card' | 'mobile_money' | 'virement';
 
@@ -10,7 +10,6 @@ export interface Subscription {
   status: SubscriptionStatus;
   startDate: string;
   endDate: string;
-  trialEndDate?: string;
 }
 
 export interface PaymentInitResponse {

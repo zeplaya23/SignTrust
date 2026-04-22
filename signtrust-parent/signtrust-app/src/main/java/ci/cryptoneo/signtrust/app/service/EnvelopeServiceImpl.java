@@ -19,7 +19,9 @@ import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -360,18 +362,21 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         envelope.setStatus("SENT");
         em.merge(envelope);
 
-        // Generate tokens and send email invitations
-        for (SignatoryEntity sig : envelope.getSignatories()) {
-            if ("CC".equals(sig.getRole())) continue;
-            sig.generateToken();
-            em.merge(sig);
+        // Generate tokens and send email invitations based on signing order
+        List<SignatoryEntity> signers = envelope.getSignatories().stream()
+                .filter(s -> !"CC".equals(s.getRole()))
+                .sorted(Comparator.comparingInt(s -> s.getOrderIndex() != null ? s.getOrderIndex() : Integer.MAX_VALUE))
+                .toList();
 
-            try {
-                String signingLink = frontendUrl + "/sign/" + sig.getToken();
-                String html = buildSigningEmailHtml(envelope.getName(), sig.getFirstName(), envelope.getMessage(), signingLink);
-                notificationService.sendEmail(sig.getEmail(), "Invitation a signer: " + envelope.getName(), html);
-            } catch (Exception e) {
-                LOG.warnf("Failed to send signing invitation to %s: %s", sig.getEmail(), e.getMessage());
+        if ("SEQUENTIAL".equals(envelope.getSigningOrder())) {
+            // Sequential mode: only send invitation to the first signatory
+            if (!signers.isEmpty()) {
+                sendSigningInvitation(signers.get(0), envelope);
+            }
+        } else {
+            // Parallel mode (default): send invitations to all signatories
+            for (SignatoryEntity sig : signers) {
+                sendSigningInvitation(sig, envelope);
             }
         }
 
@@ -470,7 +475,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
             // Apply mock digital signature
             byte[] signed = signatureService.signPdf(content, sig.getEmail(),
-                    "Signed by " + signerFullName, "SignTrust");
+                    "Signed by " + signerFullName, "DigiSign");
             storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
         }
 
@@ -514,6 +519,40 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             em.merge(envelope);
             auditService.log(envelope.getTenantId(), "ENVELOPE_COMPLETED", envelope.getCreatedBy(), "ENVELOPE",
                     envelope.getId().toString(), "All signatories have signed");
+        } else if ("SEQUENTIAL".equals(envelope.getSigningOrder())) {
+            // Sequential mode: send invitation to the next pending signatory
+            sendNextSequentialInvitation(envelope);
+        }
+    }
+
+    /**
+     * Finds the next PENDING signatory (by orderIndex) and sends them a signing invitation.
+     * Used for sequential signing mode after each signature.
+     */
+    private void sendNextSequentialInvitation(EnvelopeEntity envelope) {
+        Optional<SignatoryEntity> nextSigner = envelope.getSignatories().stream()
+                .filter(s -> !"CC".equals(s.getRole()))
+                .filter(s -> "PENDING".equals(s.getStatus()))
+                .filter(s -> s.getToken() == null) // not yet invited
+                .sorted(Comparator.comparingInt(s -> s.getOrderIndex() != null ? s.getOrderIndex() : Integer.MAX_VALUE))
+                .findFirst();
+
+        nextSigner.ifPresent(sig -> sendSigningInvitation(sig, envelope));
+    }
+
+    /**
+     * Generates a token for a signatory and sends them a signing invitation email.
+     */
+    private void sendSigningInvitation(SignatoryEntity sig, EnvelopeEntity envelope) {
+        sig.generateToken();
+        em.merge(sig);
+
+        try {
+            String signingLink = frontendUrl + "/sign/" + sig.getToken();
+            String html = buildSigningEmailHtml(envelope.getName(), sig.getFirstName(), envelope.getMessage(), signingLink);
+            notificationService.sendEmail(sig.getEmail(), "Invitation a signer: " + envelope.getName(), html);
+        } catch (Exception e) {
+            LOG.warnf("Failed to send signing invitation to %s: %s", sig.getEmail(), e.getMessage());
         }
     }
 
@@ -548,12 +587,12 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
     private String buildSigningEmailHtml(String envelopeName, String signerName, String message, String signingLink) {
         return "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>"
-                + "<h2 style='color: #2563eb;'>SignTrust</h2>"
+                + "<h2 style='color: #0083BF;'>DigiSign</h2>"
                 + "<p>Bonjour " + (signerName != null ? signerName : "") + ",</p>"
                 + "<p>Vous avez ete invite a signer le document: <strong>" + envelopeName + "</strong></p>"
                 + (message != null ? "<p><em>" + message + "</em></p>" : "")
                 + "<p><a href='" + signingLink + "' style='display: inline-block; padding: 12px 24px; "
-                + "background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px;'>"
+                + "background-color: #0083BF; color: white; text-decoration: none; border-radius: 6px;'>"
                 + "Signer maintenant</a></p>"
                 + "<p style='color: #6b7280; font-size: 12px;'>Si vous ne pouvez pas cliquer sur le bouton, "
                 + "copiez ce lien: " + signingLink + "</p>"

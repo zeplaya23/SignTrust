@@ -4,11 +4,11 @@
 @theme {
   --font-sans: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
 
-  --color-primary: #1E3A5F;
-  --color-primary-light: #EBF2FA;
-  --color-primary-medium: #3B6B9A;
-  --color-accent: #C87B2E;
-  --color-accent-light: #FEF3E2;
+  --color-primary: #0083BF;
+  --color-primary-light: #E6F4FB;
+  --color-primary-medium: #0596D6;
+  --color-accent: #4E901F;
+  --color-accent-light: #EEF6E8;
   --color-success: #177A4B;
   --color-success-light: #ECFDF3;
   --color-danger: #C0392B;

@@ -1,23 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Lock, CreditCard, BellRing, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSubscription } from '../hooks/useSubscription';
+import { settingsService } from '../services/settingsService';
 
 export default function Settings() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
-  // Profile
+  // Profile — init from auth store, then refresh from API
   const [editProfile, setEditProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
-    firstName: user?.firstName || 'Kouadio',
-    lastName: user?.lastName || 'Yao',
-    email: user?.email || 'kouadio.yao@signtrust.ci',
-    phone: user?.phone || '+225 07 08 09 10 11',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
   });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  useEffect(() => {
+    settingsService.getProfile().then((data: { firstName: string; lastName: string; email: string; phone: string }) => {
+      setProfileForm({
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        email: data.email || '',
+        phone: data.phone || '',
+      });
+    }).catch(() => {});
+  }, []);
+
+  const handleSaveProfile = async () => {
+    setProfileLoading(true);
+    try {
+      await settingsService.updateProfile({
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        phone: profileForm.phone,
+      });
+      setEditProfile(false);
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch {
+      // silent
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // Security
   const [editSecurity, setEditSecurity] = useState(false);
@@ -35,6 +67,7 @@ export default function Settings() {
   // Subscription
   const { info: subscription } = useSubscription();
   const usagePercent = subscription.max > 0 ? Math.round((subscription.used / subscription.max) * 100) : 0;
+  const isDiscovery = subscription.planId === 'discovery';
 
   return (
     <div>
@@ -49,6 +82,9 @@ export default function Settings() {
               <User size={20} className="text-primary" />
             </div>
             <h2 className="text-lg font-bold text-txt">Profil</h2>
+            {profileSaved && (
+              <span className="text-xs font-medium text-success bg-success-light px-2.5 py-1 rounded-full ml-auto">Enregistré</span>
+            )}
           </div>
 
           {!editProfile ? (
@@ -56,20 +92,20 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prénom</p>
-                  <p className="text-sm font-medium text-txt">{profileForm.firstName}</p>
+                  <p className="text-sm font-medium text-txt">{profileForm.firstName || '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Nom</p>
-                  <p className="text-sm font-medium text-txt">{profileForm.lastName}</p>
+                  <p className="text-sm font-medium text-txt">{profileForm.lastName || '—'}</p>
                 </div>
               </div>
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Email</p>
-                <p className="text-sm font-medium text-txt">{profileForm.email}</p>
+                <p className="text-sm font-medium text-txt">{profileForm.email || '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Téléphone</p>
-                <p className="text-sm font-medium text-txt">{profileForm.phone}</p>
+                <p className="text-sm font-medium text-txt">{profileForm.phone || '���'}</p>
               </div>
               <Button variant="outline" size="sm" onClick={() => setEditProfile(true)}>Modifier</Button>
             </div>
@@ -115,7 +151,9 @@ export default function Settings() {
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" size="sm" onClick={() => setEditProfile(false)}>Annuler</Button>
-                <Button variant="primary" size="sm" icon={Save} onClick={() => setEditProfile(false)}>Enregistrer</Button>
+                <Button variant="primary" size="sm" icon={Save} onClick={handleSaveProfile} disabled={profileLoading}>
+                  {profileLoading ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
               </div>
             </div>
           )}
@@ -150,25 +188,6 @@ export default function Settings() {
                   />
                   <div className="w-11 h-6 bg-border rounded-full peer peer-checked:bg-primary peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
                 </label>
-              </div>
-              <div>
-                <p className="text-xs text-txt-muted uppercase tracking-wider mb-2">Sessions actives</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between bg-bg rounded-xl px-4 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-txt">Chrome - macOS</p>
-                      <p className="text-xs text-txt-muted">Abidjan, CI - Session actuelle</p>
-                    </div>
-                    <span className="w-2 h-2 rounded-full bg-success" />
-                  </div>
-                  <div className="flex items-center justify-between bg-bg rounded-xl px-4 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-txt">Safari - iPhone</p>
-                      <p className="text-xs text-txt-muted">Abidjan, CI - Il y a 2 jours</p>
-                    </div>
-                    <span className="w-2 h-2 rounded-full bg-txt-muted" />
-                  </div>
-                </div>
               </div>
               <Button variant="outline" size="sm" onClick={() => setEditSecurity(true)}>Modifier le mot de passe</Button>
             </div>
@@ -224,27 +243,43 @@ export default function Settings() {
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Plan actuel</p>
                 <p className="text-sm font-medium text-txt">{subscription.planName}</p>
               </div>
-              <p className="text-lg font-bold text-accent">{subscription.price.toLocaleString('fr-FR')} <span className="text-sm font-normal text-txt-secondary">FCFA/mois</span></p>
+              <p className="text-lg font-bold text-accent">
+                {isDiscovery ? (
+                  <span className="text-sm font-medium text-warning">Essai gratuit</span>
+                ) : (
+                  <>{subscription.price.toLocaleString('fr-FR')} <span className="text-sm font-normal text-txt-secondary">FCFA/mois</span></>
+                )}
+              </p>
             </div>
-            {subscription.endDate && (
+            {isDiscovery && subscription.endDate && (
               <div>
-                <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prochaine facturation</p>
+                <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Fin de l'essai</p>
+                <p className="text-sm font-medium text-warning">{new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              </div>
+            )}
+            {!isDiscovery && subscription.endDate && (
+              <div>
+                <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prochain renouvellement</p>
                 <p className="text-sm font-medium text-txt">{new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               </div>
             )}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs text-txt-muted uppercase tracking-wider">Utilisation</p>
-                <p className="text-sm font-medium text-txt">{subscription.used}/{subscription.max} enveloppes</p>
+                <p className="text-sm font-medium text-txt">
+                  {subscription.used}/{subscription.max === -1 ? '���' : subscription.max} enveloppes
+                </p>
               </div>
               <div className="w-full bg-border rounded-full h-2.5">
                 <div
                   className="bg-accent h-2.5 rounded-full transition-all"
-                  style={{ width: `${usagePercent}%` }}
+                  style={{ width: `${subscription.max === -1 ? 0 : usagePercent}%` }}
                 />
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => navigate('/subscribe/plan')}>Changer de plan</Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/subscribe/plan')}>
+              {isDiscovery ? 'Passer �� un plan supérieur' : 'Changer de plan'}
+            </Button>
           </div>
         </Card>
 

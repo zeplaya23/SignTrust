@@ -8,9 +8,9 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { authService } from '../../services/authService';
 import type { SubscriptionStatus } from '../../types/subscription';
 
-function getTrialEndDate(): string {
+function getRenewDate(): string {
   const date = new Date();
-  date.setDate(date.getDate() + 14);
+  date.setMonth(date.getMonth() + 1);
   return date.toLocaleDateString('fr-FR', {
     day: 'numeric',
     month: 'long',
@@ -20,7 +20,7 @@ function getTrialEndDate(): string {
 
 export default function PaymentSuccess() {
   const navigate = useNavigate();
-  const { selectedPlan, paymentMethod, registrationData, reset } = useSubscriptionStore();
+  const { selectedPlan, paymentMethod, paymentReference, registrationData, reset } = useSubscriptionStore();
   const { setAuth, token } = useAuthStore();
   const [autoLoginDone, setAutoLoginDone] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -75,6 +75,7 @@ export default function PaymentSuccess() {
     card: 'Carte bancaire',
     mobile_money: 'Mobile Money',
     virement: 'Virement bancaire',
+    none: 'Essai gratuit',
   };
 
   return (
@@ -88,19 +89,21 @@ export default function PaymentSuccess() {
         </div>
 
         <h1 className="text-2xl font-bold text-dark mb-2">
-          Bienvenue sur SignTrust !
+          Bienvenue sur DigiSign !
         </h1>
         <p className="text-sm text-txt-secondary mb-8">
-          Abonnement {selectedPlan?.name || 'Pro'} actif. Essai gratuit 14 jours.
+          {selectedPlan?.id === 'discovery'
+            ? `Essai gratuit de 14 jours activé. Profitez de DigiSign !`
+            : `Abonnement ${selectedPlan?.name || 'Pro'} activé avec succès.`}
         </p>
 
         <div className="mb-8">
           <ReceiptCard
-            reference="00127"
+            reference={paymentReference || '—'}
             plan={selectedPlan?.name || 'Pro'}
             method={methodLabels[paymentMethod] || 'Mobile Money'}
-            trialEnd={getTrialEndDate()}
-            status="trial"
+            renewDate={selectedPlan?.id !== 'discovery' ? getRenewDate() : undefined}
+            status={selectedPlan?.id === 'discovery' ? 'discovery' : 'active'}
           />
         </div>
 
@@ -128,7 +131,7 @@ export default function PaymentSuccess() {
             onClick={handleGo}
             disabled={!autoLoginDone && !token}
           >
-            Acceder a SignTrust
+            Acceder a DigiSign
           </Button>
         </div>
       </div>

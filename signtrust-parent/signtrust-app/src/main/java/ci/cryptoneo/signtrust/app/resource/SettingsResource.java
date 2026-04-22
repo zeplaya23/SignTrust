@@ -103,7 +103,7 @@ public class SettingsResource {
         } catch (NoResultException e) {
             return Response.ok(Map.of(
                     "status", "NONE",
-                    "planId", "free",
+                    "planId", "discovery",
                     "message", "Aucun abonnement actif"
             )).build();
         }

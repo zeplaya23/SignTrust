@@ -2,9 +2,11 @@ import { Shield } from "lucide-react";
 import clsx from "clsx";
 
 type LogoSize = "sm" | "md" | "lg";
+type LogoVariant = "default" | "light";
 
 interface LogoProps {
   size?: LogoSize;
+  variant?: LogoVariant;
 }
 
 const sizeConfig: Record<LogoSize, { icon: number; text: string }> = {
@@ -13,15 +15,16 @@ const sizeConfig: Record<LogoSize, { icon: number; text: string }> = {
   lg: { icon: 40, text: "text-2xl" },
 };
 
-export default function Logo({ size = "md" }: LogoProps) {
+export default function Logo({ size = "md", variant = "default" }: LogoProps) {
   const config = sizeConfig[size];
+  const isLight = variant === "light";
 
   return (
     <div className="flex items-center gap-2">
-      <Shield size={config.icon} className="text-primary" />
+      <Shield size={config.icon} className={isLight ? "text-white" : "text-primary"} />
       <div className={clsx("font-bold leading-none", config.text)}>
-        <span className="text-primary">Cryptoneo</span>
-        <span className="text-dark"> SignTrust</span>
+        <span className={isLight ? "text-white" : "text-primary"}>Cryptoneo</span>
+        <span className={isLight ? "text-white/70" : "text-dark"}> DigiSign</span>
       </div>
     </div>
   );

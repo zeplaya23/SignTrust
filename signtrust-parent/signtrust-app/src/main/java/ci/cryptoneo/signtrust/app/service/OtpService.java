@@ -43,12 +43,12 @@ public class OtpService {
 
         // Send email via Mailpit
         mailer.send(Mail.withHtml(email,
-                "SignTrust — Code de vérification",
+                "DigiSign — Code de vérification",
                 "<div style='font-family:DM Sans,sans-serif;max-width:400px;margin:0 auto;padding:20px'>"
-                + "<h2 style='color:#1E3A5F'>SignTrust</h2>"
+                + "<h2 style='color:#0083BF'>DigiSign</h2>"
                 + "<p>Votre code de vérification est :</p>"
-                + "<div style='background:#EBF2FA;border-radius:12px;padding:20px;text-align:center;margin:20px 0'>"
-                + "<span style='font-size:32px;font-weight:700;letter-spacing:8px;color:#1E3A5F'>" + code + "</span>"
+                + "<div style='background:#E6F4FB;border-radius:12px;padding:20px;text-align:center;margin:20px 0'>"
+                + "<span style='font-size:32px;font-weight:700;letter-spacing:8px;color:#0083BF'>" + code + "</span>"
                 + "</div>"
                 + "<p style='color:#5F6B7A;font-size:14px'>Ce code expire dans 5 minutes.</p>"
                 + "<p style='color:#94A3B8;font-size:12px'>Si vous n'avez pas demandé ce code, ignorez cet email.</p>"

@@ -23,6 +23,7 @@ import Analytics from './pages/Analytics';
 import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,7 +54,8 @@ export default function App() {
           <Route path="/sign/:token/view" element={<SignView />} />
           <Route path="/sign/success" element={<SignSuccess />} />
 
-          {/* App routes with sidebar */}
+          {/* App routes with sidebar — protected */}
+          <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/envelopes" element={<EnvelopeList />} />
@@ -66,6 +68,7 @@ export default function App() {
             <Route path="/activity" element={<Activity />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/notifications" element={<Notifications />} />
+          </Route>
           </Route>
         </Routes>
       </BrowserRouter>

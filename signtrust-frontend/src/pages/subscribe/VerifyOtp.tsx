@@ -7,10 +7,11 @@ import TopBar from '../../components/layout/TopBar';
 import { useOtpTimer } from '../../hooks/useOtpTimer';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
 import { authService } from '../../services/authService';
+import { paymentService } from '../../services/paymentService';
 
 export default function VerifyOtp() {
   const navigate = useNavigate();
-  const { registrationData, setOtpVerified } = useSubscriptionStore();
+  const { registrationData, selectedPlan, userId, setOtpVerified, setPaymentReference } = useSubscriptionStore();
   const { seconds, canResend, restart } = useOtpTimer(60);
   const [otpCode, setOtpCode] = useState('');
   const [attempts, setAttempts] = useState(0);
@@ -34,6 +35,21 @@ export default function VerifyOtp() {
     try {
       await authService.verifyOtp(email, otpCode);
       setOtpVerified(true);
+
+      // Plan discovery (gratuit) : bypass paiement, activer directement
+      if (selectedPlan?.id === 'discovery' && userId) {
+        const resp = await paymentService.initialize({
+          userId,
+          planId: 'discovery',
+          paymentMethod: 'none',
+          mobileOperator: null,
+          amount: 0,
+        });
+        setPaymentReference(resp.reference);
+        navigate('/subscribe/success');
+        return;
+      }
+
       navigate('/subscribe/payment');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };

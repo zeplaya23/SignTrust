@@ -72,7 +72,7 @@ export default function Login() {
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full bg-accent/20 blur-3xl" />
         <div className="relative z-10 text-center">
           <Logo size="lg" />
-          <p className="mt-4 text-xl font-semibold text-white">SignTrust</p>
+          <p className="mt-4 text-xl font-semibold text-white">DigiSign</p>
           <p className="mt-2 text-sm text-txt-muted">
             La signature électronique de confiance
           </p>

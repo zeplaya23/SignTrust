@@ -7,7 +7,7 @@ import org.eclipse.microprofile.openapi.annotations.info.Info;
 
 @OpenAPIDefinition(
     info = @Info(
-        title = "SignTrust API",
+        title = "DigiSign API",
         version = "1.0.0",
         description = "Plateforme de Signature Electronique Multi-tenant — Cryptoneo",
         contact = @Contact(name = "Cryptoneo", url = "https://cryptoneo.ci")

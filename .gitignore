@@ -37,3 +37,6 @@ softhsm2/tokens/
 
 # MinIO data
 minio-data/
+
+# Console admin (separate repo)
+signtrust-consoleadmin-frontend/

@@ -38,7 +38,7 @@ function getInitials(firstName?: string, lastName?: string): string {
 function getPlanColors(status: string) {
   switch (status) {
     case 'ACTIVE': return { color: 'text-accent', bg: 'bg-accent' };
-    case 'TRIAL': return { color: 'text-warning', bg: 'bg-warning' };
+    case 'TRIAL': return { color: 'text-warning', bg: 'bg-warning' }; // Découverte = essai 14j
     default: return { color: 'text-txt-secondary', bg: 'bg-txt-secondary' };
   }
 }

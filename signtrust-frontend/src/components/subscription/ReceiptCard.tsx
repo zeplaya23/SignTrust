@@ -2,28 +2,31 @@ interface ReceiptCardProps {
   reference: string;
   plan: string;
   method: string;
-  trialEnd: string;
-  status: 'active' | 'trial';
+  renewDate?: string;
+  status: 'active' | 'discovery';
 }
 
 const statusLabels: Record<ReceiptCardProps['status'], string> = {
   active: 'Actif',
-  trial: 'Essai',
+  discovery: 'Découverte',
 };
 
 export default function ReceiptCard({
   reference,
   plan,
   method,
-  trialEnd,
+  renewDate,
   status,
 }: ReceiptCardProps) {
+  const isDiscovery = status === 'discovery';
+
   const lines: { label: string; value: React.ReactNode }[] = [
-    { label: 'Référence', value: `PAY-2026-${reference}` },
+    { label: 'Référence', value: reference },
     { label: 'Plan', value: plan },
     { label: 'Méthode', value: method },
-    { label: 'Essai gratuit', value: '14 jours' },
-    { label: 'Prochain prélèvement', value: trialEnd },
+    ...(isDiscovery
+      ? [{ label: 'Essai gratuit', value: '14 jours' }]
+      : [{ label: 'Prochain renouvellement', value: renewDate || '—' }]),
     {
       label: 'Statut',
       value: (
