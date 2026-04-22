@@ -85,20 +85,21 @@ public class AuthService {
             keycloakId = location.substring(location.lastIndexOf('/') + 1);
         }
 
-        // Assign 'member' role
+        // Assign 'admin' role — the person who registers is the tenant admin
         try {
-            RoleRepresentation memberRole = keycloak.realm(realmName)
-                    .roles().get("member").toRepresentation();
+            RoleRepresentation adminRole = keycloak.realm(realmName)
+                    .roles().get("admin").toRepresentation();
             keycloak.realm(realmName).users().get(keycloakId)
-                    .roles().realmLevel().add(Collections.singletonList(memberRole));
+                    .roles().realmLevel().add(Collections.singletonList(adminRole));
         } catch (Exception e) {
-            LOG.warn("Could not assign member role: " + e.getMessage());
+            LOG.warn("Could not assign admin role: " + e.getMessage());
         }
 
-        // Save user profile in DB
+        // Save user profile in DB — each registration creates a new tenant
+        String tenantId = java.util.UUID.randomUUID().toString();
         UserProfileEntity profile = new UserProfileEntity();
         profile.setKeycloakId(keycloakId);
-        profile.setTenantId("default");
+        profile.setTenantId(tenantId);
         profile.setEmail(req.email());
         profile.setFirstName(req.firstName());
         profile.setLastName(req.lastName());
@@ -161,15 +162,20 @@ public class AuthService {
                 subscriptionStatus = sub.getStatus();
             } catch (NoResultException ignored) {}
 
+            // Extract best role from JWT token
+            String role = extractRoleFromToken(accessToken);
+
             LoginResponse.UserInfo userInfo = new LoginResponse.UserInfo(
                     profile.getKeycloakId(),
                     profile.getEmail(),
                     profile.getFirstName(),
                     profile.getLastName(),
                     profile.getPhone(),
-                    "member",
+                    role,
                     profile.getTenantId(),
-                    subscriptionStatus
+                    subscriptionStatus,
+                    profile.getAccountType(),
+                    profile.getCompanyName()
             );
 
             return new LoginResponse(accessToken, refreshToken, expiresIn, userInfo);
@@ -217,6 +223,25 @@ public class AuthService {
             throw new WebApplicationException("Erreur de rafraîchissement du token",
                     Response.Status.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private String extractRoleFromToken(String accessToken) {
+        try {
+            String[] parts = accessToken.split("\\.");
+            if (parts.length < 2) return "member";
+            // Pad Base64 URL string to multiple of 4
+            String b64 = parts[1];
+            int pad = (4 - b64.length() % 4) % 4;
+            b64 = b64 + "=".repeat(pad);
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(b64), StandardCharsets.UTF_8);
+            // Priority order for role extraction
+            for (String role : List.of("SUPER_ADMIN", "admin", "manager", "signer")) {
+                if (payload.contains("\"" + role + "\"")) return role;
+            }
+        } catch (Exception e) {
+            LOG.warn("Could not extract role from token: " + e.getMessage());
+        }
+        return "member";
     }
 
     private String extractJsonValue(String json, String key) {

@@ -6,6 +6,8 @@ export interface User {
   phone: string;
   role: string;
   tenantId: string;
+  accountType: string | null;
+  companyName: string | null;
 }
 
 export interface LoginRequest {

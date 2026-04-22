@@ -20,6 +20,8 @@ export interface LoginResponse {
     role: string;
     tenantId: string;
     subscriptionStatus: string;
+    accountType: string | null;
+    companyName: string | null;
   };
 }
 

@@ -51,6 +51,8 @@ export default function PaymentSuccess() {
             phone: resp.user.phone,
             role: resp.user.role,
             tenantId: resp.user.tenantId,
+            accountType: resp.user.accountType || null,
+            companyName: resp.user.companyName || null,
           },
           (resp.user.subscriptionStatus || 'NONE') as SubscriptionStatus
         );

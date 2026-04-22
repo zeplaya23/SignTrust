@@ -14,6 +14,8 @@ public record LoginResponse(
         String phone,
         String role,
         String tenantId,
-        String subscriptionStatus
+        String subscriptionStatus,
+        String accountType,
+        String companyName
     ) {}
 }

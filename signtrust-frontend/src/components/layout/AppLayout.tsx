@@ -6,6 +6,8 @@ import {
   Copy,
   Users,
   UserCog,
+  BarChart3,
+  ScrollText,
   Settings,
   Bell,
   LogOut,
@@ -16,13 +18,16 @@ import Logo from '../ui/Logo';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useSubscription } from '../../hooks/useSubscription';
 
+// roles: undefined = visible to all, otherwise array of allowed roles
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/envelopes', label: 'Enveloppes', icon: FolderOpen },
   { to: '/templates', label: 'Modeles', icon: Copy },
   { to: '/contacts', label: 'Contacts', icon: Users },
-  { to: '/team', label: 'Equipe', icon: UserCog },
-];
+  { to: '/team', label: 'Equipe', icon: UserCog, roles: ['admin', 'manager'] },
+  { to: '/analytics', label: 'Statistiques', icon: BarChart3, roles: ['admin'] },
+  { to: '/activity', label: 'Activite', icon: ScrollText, roles: ['admin', 'manager'] },
+] as const;
 
 function getInitials(firstName?: string, lastName?: string): string {
   const f = firstName?.charAt(0)?.toUpperCase() ?? '';
@@ -79,7 +84,7 @@ export default function AppLayout() {
         {/* ── Navigation ── */}
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 pt-4 pb-2 flex flex-col gap-0.5">
           <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-txt-muted">Menu</p>
-          {navItems.map((item) => (
+          {navItems.filter((item) => !('roles' in item && item.roles) || (item.roles as readonly string[]).includes(user?.role ?? '')).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -155,15 +160,40 @@ export default function AppLayout() {
 
         {/* ── User card ── */}
         <div className="px-3 py-3 shrink-0">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border bg-bg/50">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {getInitials(user?.firstName, user?.lastName)}
+          <div className="rounded-xl border border-border bg-bg/50 overflow-hidden">
+            {/* Account type header */}
+            <div className={clsx(
+              'px-3 py-1.5 text-center',
+              (user?.accountType === 'entreprise' || user?.accountType === 'enterprise')
+                ? 'bg-primary/10'
+                : 'bg-accent/10'
+            )}>
+              <span className={clsx(
+                'text-[10px] font-bold uppercase tracking-wider',
+                (user?.accountType === 'entreprise' || user?.accountType === 'enterprise')
+                  ? 'text-primary'
+                  : 'text-accent'
+              )}>
+                {(user?.accountType === 'entreprise' || user?.accountType === 'enterprise') ? 'Compte Entreprise' : 'Compte Particulier'}
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-txt truncate">
-                {user?.firstName} {user?.lastName}
-              </p>
-              <p className="text-[11px] text-txt-muted truncate">{user?.email}</p>
+            {/* User info */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
+                {getInitials(user?.firstName, user?.lastName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                {user?.companyName && (
+                  <p className="text-[12px] font-bold text-primary truncate">{user.companyName}</p>
+                )}
+                <p className="text-[12px] font-semibold text-txt truncate">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-[10px] text-txt-muted truncate">{user?.email}</p>
+                <span className="inline-block mt-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-primary-light text-primary">
+                  {user?.role === 'admin' ? 'Administrateur' : user?.role === 'manager' ? 'Manager' : 'Membre'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

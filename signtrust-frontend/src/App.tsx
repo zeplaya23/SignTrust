@@ -19,6 +19,8 @@ import SignSuccess from './pages/sign/SignSuccess';
 import Team from './pages/Team';
 import Templates from './pages/Templates';
 import Contacts from './pages/Contacts';
+import Analytics from './pages/Analytics';
+import Activity from './pages/Activity';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 
@@ -60,6 +62,8 @@ export default function App() {
             <Route path="/team" element={<Team />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/contacts" element={<Contacts />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/activity" element={<Activity />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/notifications" element={<Notifications />} />
           </Route>

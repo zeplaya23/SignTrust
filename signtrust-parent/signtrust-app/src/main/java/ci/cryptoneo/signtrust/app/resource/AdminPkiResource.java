@@ -3,7 +3,6 @@ package ci.cryptoneo.signtrust.app.resource;
 import ci.cryptoneo.signtrust.app.dto.CertificateIssueRequest;
 import ci.cryptoneo.signtrust.app.dto.CertificateRevokeRequest;
 import ci.cryptoneo.signtrust.app.service.AdminService;
-import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -12,7 +11,6 @@ import jakarta.ws.rs.core.Response;
 
 import java.util.Map;
 
-@Authenticated
 @RolesAllowed("SUPER_ADMIN")
 @Path("/api/v1/admin")
 @Produces(MediaType.APPLICATION_JSON)
