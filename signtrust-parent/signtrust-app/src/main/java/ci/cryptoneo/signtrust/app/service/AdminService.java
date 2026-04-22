@@ -46,6 +46,9 @@ public class AdminService {
     @ConfigProperty(name = "signtrust.frontend.url", defaultValue = "http://localhost:5080")
     String frontendUrl;
 
+    @ConfigProperty(name = "signtrust.keycloak.server-url", defaultValue = "http://trust-keycloak:8080/auth")
+    String keycloakServerUrl;
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     // ─── Plan limits (planId → {envelopesMax, usersMax}) ───
@@ -137,13 +140,8 @@ public class AdminService {
         // Base de données — if we got here, it's up (EntityManager works)
         health.add(new ServiceHealthDto("Base de données", "up"));
 
-        // Authentification
-        try {
-            keycloak.serverInfo().getInfo();
-            health.add(new ServiceHealthDto("Authentification", "up"));
-        } catch (Exception e) {
-            health.add(new ServiceHealthDto("Authentification", "down"));
-        }
+        // Authentification — simple HTTP check on realm endpoint
+        health.add(checkHttpHealth("Authentification", keycloakServerUrl + "/realms/signtrust"));
 
         // Stockage documents — check via HTTP
         health.add(checkHttpHealth("Stockage documents", "http://signtrust-minio:9000/minio/health/live"));
