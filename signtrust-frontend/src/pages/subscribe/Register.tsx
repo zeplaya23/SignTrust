@@ -122,7 +122,7 @@ export default function Register() {
               Créez votre compte
             </h1>
             <p className="text-sm text-txt-secondary mb-6">
-              Remplissez vos informations pour commencer à utiliser DigiSign.
+              Remplissez vos informations pour commencer à utiliser diSign Parapheur.
             </p>
 
             {error && (

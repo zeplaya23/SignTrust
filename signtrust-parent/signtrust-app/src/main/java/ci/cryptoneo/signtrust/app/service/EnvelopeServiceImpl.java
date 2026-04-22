@@ -475,7 +475,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
             // Apply mock digital signature
             byte[] signed = signatureService.signPdf(content, sig.getEmail(),
-                    "Signed by " + signerFullName, "DigiSign");
+                    "Signed by " + signerFullName, "diSign Parapheur");
             storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
         }
 
@@ -586,16 +586,27 @@ public class EnvelopeServiceImpl implements EnvelopeService {
     }
 
     private String buildSigningEmailHtml(String envelopeName, String signerName, String message, String signingLink) {
-        return "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>"
-                + "<h2 style='color: #0083BF;'>DigiSign</h2>"
-                + "<p>Bonjour " + (signerName != null ? signerName : "") + ",</p>"
-                + "<p>Vous avez ete invite a signer le document: <strong>" + envelopeName + "</strong></p>"
-                + (message != null ? "<p><em>" + message + "</em></p>" : "")
-                + "<p><a href='" + signingLink + "' style='display: inline-block; padding: 12px 24px; "
-                + "background-color: #0083BF; color: white; text-decoration: none; border-radius: 6px;'>"
-                + "Signer maintenant</a></p>"
-                + "<p style='color: #6b7280; font-size: 12px;'>Si vous ne pouvez pas cliquer sur le bouton, "
-                + "copiez ce lien: " + signingLink + "</p>"
+        return "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
+                + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
+                + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>diSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                + "</div>"
+                + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
+                + "<p style='color:#1E293B;font-size:16px;font-weight:600;margin:0 0 4px'>Invitation a signer</p>"
+                + "<p style='color:#64748B;font-size:13px;margin:0 0 20px'>Bonjour " + (signerName != null ? signerName : "") + ",</p>"
+                + "<div style='background:#F8FAFC;border-left:4px solid #0083BF;border-radius:0 8px 8px 0;padding:16px;margin:0 0 20px'>"
+                + "<p style='color:#334155;font-size:14px;margin:0'>Vous avez ete invite(e) a signer :</p>"
+                + "<p style='color:#0083BF;font-size:15px;font-weight:700;margin:8px 0 0'>" + envelopeName + "</p>"
+                + "</div>"
+                + (message != null && !message.isEmpty() ? "<p style='color:#64748B;font-size:13px;font-style:italic;margin:0 0 20px;padding:12px;background:#FFFBEB;border-radius:8px;border:1px solid #FDE68A'>" + message + "</p>" : "")
+                + "<div style='text-align:center;margin:24px 0'>"
+                + "<a href='" + signingLink + "' style='display:inline-block;padding:14px 40px;"
+                + "background:linear-gradient(135deg,#0083BF,#005A8C);color:#fff;text-decoration:none;border-radius:12px;font-weight:700;font-size:15px'>"
+                + "Signer maintenant</a>"
+                + "</div>"
+                + "<p style='color:#94A3B8;font-size:11px;text-align:center;margin:0'>Si le bouton ne fonctionne pas, copiez ce lien :<br/>"
+                + "<a href='" + signingLink + "' style='color:#0083BF;word-break:break-all;font-size:11px'>" + signingLink + "</a></p>"
+                + "</div>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
                 + "</div>";
     }
 }

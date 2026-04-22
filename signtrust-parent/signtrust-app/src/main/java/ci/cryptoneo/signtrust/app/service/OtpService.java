@@ -43,15 +43,20 @@ public class OtpService {
 
         // Send email via Mailpit
         mailer.send(Mail.withHtml(email,
-                "DigiSign — Code de vérification",
-                "<div style='font-family:DM Sans,sans-serif;max-width:400px;margin:0 auto;padding:20px'>"
-                + "<h2 style='color:#0083BF'>DigiSign</h2>"
-                + "<p>Votre code de vérification est :</p>"
-                + "<div style='background:#E6F4FB;border-radius:12px;padding:20px;text-align:center;margin:20px 0'>"
-                + "<span style='font-size:32px;font-weight:700;letter-spacing:8px;color:#0083BF'>" + code + "</span>"
+                "diSign Parapheur — Code de vérification",
+                "<div style='font-family:Inter,system-ui,sans-serif;max-width:460px;margin:0 auto;padding:0'>"
+                + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
+                + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>diSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
                 + "</div>"
-                + "<p style='color:#5F6B7A;font-size:14px'>Ce code expire dans 5 minutes.</p>"
-                + "<p style='color:#94A3B8;font-size:12px'>Si vous n'avez pas demandé ce code, ignorez cet email.</p>"
+                + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
+                + "<p style='color:#1E293B;font-size:15px;margin:0 0 8px'>Votre code de vérification</p>"
+                + "<p style='color:#64748B;font-size:13px;margin:0 0 20px'>Utilisez le code ci-dessous pour continuer :</p>"
+                + "<div style='background:#F0F9FF;border:2px solid #0083BF20;border-radius:12px;padding:24px;text-align:center;margin:0 0 20px'>"
+                + "<span style='font-size:36px;font-weight:800;letter-spacing:10px;color:#0083BF'>" + code + "</span>"
+                + "</div>"
+                + "<p style='color:#94A3B8;font-size:12px;margin:0'>Ce code expire dans 5 minutes. Si vous n'avez pas fait cette demande, ignorez cet email.</p>"
+                + "</div>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
                 + "</div>"
         ));
 

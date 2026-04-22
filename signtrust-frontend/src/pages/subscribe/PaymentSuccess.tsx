@@ -89,11 +89,11 @@ export default function PaymentSuccess() {
         </div>
 
         <h1 className="text-2xl font-bold text-dark mb-2">
-          Bienvenue sur DigiSign !
+          Bienvenue sur diSign Parapheur !
         </h1>
         <p className="text-sm text-txt-secondary mb-8">
           {selectedPlan?.id === 'discovery'
-            ? `Essai gratuit de 14 jours activé. Profitez de DigiSign !`
+            ? `Essai gratuit de 14 jours activé. Profitez de diSign Parapheur !`
             : `Abonnement ${selectedPlan?.name || 'Pro'} activé avec succès.`}
         </p>
 
@@ -131,7 +131,7 @@ export default function PaymentSuccess() {
             onClick={handleGo}
             disabled={!autoLoginDone && !token}
           >
-            Acceder a DigiSign
+            Acceder a diSign Parapheur
           </Button>
         </div>
       </div>
