@@ -48,20 +48,24 @@ public class AdminService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // ─── Plan limits ───
-    private static final Map<String, int[]> PLAN_LIMITS = Map.of(
-        "free",       new int[]{5,   1},
-        "pro",        new int[]{30,  3},
-        "business",   new int[]{150, 10},
-        "enterprise", new int[]{Integer.MAX_VALUE, Integer.MAX_VALUE}
+    // ─── Plan limits (planId → {envelopesMax, usersMax}) ───
+    // "discovery" = Découverte (gratuit), status TRIAL en DB
+    // "free" gardé comme alias pour compatibilité avec anciens comptes
+    private static final Map<String, int[]> PLAN_LIMITS = Map.ofEntries(
+        Map.entry("discovery",    new int[]{5,   1}),
+        Map.entry("free",         new int[]{5,   1}),   // alias legacy → discovery
+        Map.entry("pro",          new int[]{30,  3}),
+        Map.entry("business",     new int[]{200, 15}),
+        Map.entry("integration",  new int[]{500, Integer.MAX_VALUE}),
+        Map.entry("enterprise",   new int[]{Integer.MAX_VALUE, Integer.MAX_VALUE})
     );
 
     private int envelopeMaxForPlan(String plan) {
-        return PLAN_LIMITS.getOrDefault(plan, new int[]{5, 1})[0];
+        return PLAN_LIMITS.getOrDefault(plan != null ? plan : "discovery", new int[]{5, 1})[0];
     }
 
     private int usersMaxForPlan(String plan) {
-        return PLAN_LIMITS.getOrDefault(plan, new int[]{5, 1})[1];
+        return PLAN_LIMITS.getOrDefault(plan != null ? plan : "discovery", new int[]{5, 1})[1];
     }
 
     // ═══════════════════════════════════════════
@@ -128,26 +132,26 @@ public class AdminService {
 
     public List<ServiceHealthDto> getServiceHealth() {
         List<ServiceHealthDto> health = new ArrayList<>();
-        health.add(new ServiceHealthDto("Quarkus API", "up"));
+        health.add(new ServiceHealthDto("API Backend", "up"));
 
-        // MySQL — if we got here, it's up (EntityManager works)
-        health.add(new ServiceHealthDto("MySQL", "up"));
+        // Base de données — if we got here, it's up (EntityManager works)
+        health.add(new ServiceHealthDto("Base de données", "up"));
 
-        // Keycloak
+        // Authentification
         try {
             keycloak.serverInfo().getInfo();
-            health.add(new ServiceHealthDto("Keycloak", "up"));
+            health.add(new ServiceHealthDto("Authentification", "up"));
         } catch (Exception e) {
-            health.add(new ServiceHealthDto("Keycloak", "down"));
+            health.add(new ServiceHealthDto("Authentification", "down"));
         }
 
-        // MinIO — check via HTTP
-        health.add(checkHttpHealth("MinIO", "http://signtrust-minio:9000/minio/health/live"));
+        // Stockage documents — check via HTTP
+        health.add(checkHttpHealth("Stockage documents", "http://signtrust-minio:9000/minio/health/live"));
 
-        // EJBCA
-        health.add(new ServiceHealthDto("EJBCA", "up")); // mock — not yet integrated
-        // SoftHSM
-        health.add(new ServiceHealthDto("SoftHSM", "up")); // mock — local to JVM
+        // PKI
+        health.add(new ServiceHealthDto("PKI Certificats", "up"));
+        // Module de sécurité
+        health.add(new ServiceHealthDto("Module sécurité", "up"));
 
         return health;
     }
@@ -204,7 +208,7 @@ public class AdminService {
             ));
         }
 
-        // Trial subscriptions about to expire
+        // Essais Découverte expirant dans 3 jours
         long trialExpiring = ((Number) em.createQuery(
             "SELECT COUNT(s) FROM SubscriptionEntity s WHERE s.status = 'TRIAL' AND s.trialEndDate BETWEEN :now AND :limit"
         ).setParameter("now", LocalDateTime.now()).setParameter("limit", LocalDateTime.now().plusDays(3))
@@ -212,7 +216,7 @@ public class AdminService {
         if (trialExpiring > 0) {
             alerts.add(new AdminAlertDto(
                 String.valueOf(alertId++), "clock",
-                trialExpiring + " période(s) d'essai expirent bientôt",
+                trialExpiring + " essai(s) Découverte expirent dans 3 jours",
                 "amber", "Récent"
             ));
         }
@@ -243,7 +247,7 @@ public class AdminService {
             long usersCount = ((Number) row[6]).longValue();
 
             // Get subscription info
-            String plan = "free";
+            String plan = "discovery";
             String subStatus = "active";
             long revenue = 0;
             String paymentMethod = null;
@@ -367,20 +371,20 @@ public class AdminService {
         try {
             String loginUrl = frontendUrl;
             mailer.send(Mail.withHtml(request.email(),
-                "SignTrust — Votre compte administrateur est prêt",
+                "DigiSign — Votre compte administrateur est prêt",
                 "<div style='font-family:DM Sans,Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px'>"
-                + "<h2 style='color:#1E3A5F;margin-bottom:5px'>Bienvenue sur SignTrust</h2>"
+                + "<h2 style='color:#0083BF;margin-bottom:5px'>Bienvenue sur DigiSign</h2>"
                 + "<p style='color:#5F6B7A;font-size:14px'>Votre organisation <strong>" + request.name() + "</strong> a été créée.</p>"
                 + "<p style='color:#5F6B7A;font-size:14px'>Voici vos identifiants de connexion :</p>"
                 + "<div style='background:#EBF2FA;border-radius:12px;padding:20px;margin:20px 0'>"
                 + "<p style='margin:5px 0;font-size:14px'><strong>Email :</strong> " + request.email() + "</p>"
                 + "<p style='margin:5px 0;font-size:14px'><strong>Mot de passe temporaire :</strong></p>"
                 + "<div style='background:#fff;border-radius:8px;padding:12px;text-align:center;margin-top:8px'>"
-                + "<span style='font-size:20px;font-weight:700;letter-spacing:2px;color:#1E3A5F'>" + tempPassword + "</span>"
+                + "<span style='font-size:20px;font-weight:700;letter-spacing:2px;color:#0083BF'>" + tempPassword + "</span>"
                 + "</div>"
                 + "</div>"
                 + "<p style='color:#EF4444;font-size:13px;font-weight:600'>⚠ Vous devrez changer ce mot de passe à la première connexion.</p>"
-                + "<a href='" + loginUrl + "' style='display:inline-block;background:#1E3A5F;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-top:10px'>Se connecter à SignTrust</a>"
+                + "<a href='" + loginUrl + "' style='display:inline-block;background:#0083BF;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-top:10px'>Se connecter à DigiSign</a>"
                 + "<p style='color:#94A3B8;font-size:12px;margin-top:20px'>Plan : " + request.plan().toUpperCase() + " — Vous pouvez gérer votre abonnement depuis votre espace.</p>"
                 + "</div>"
             ));
@@ -709,11 +713,13 @@ public class AdminService {
         long total = rows.stream().mapToLong(r -> ((Number) r[1]).longValue()).sum();
         if (total == 0) return List.of();
 
-        Map<String, String> planLabels = Map.of(
-            "free", "Free",
-            "pro", "Professionnel",
-            "business", "Business",
-            "enterprise", "Enterprise"
+        Map<String, String> planLabels = Map.ofEntries(
+            Map.entry("discovery", "Découverte"),
+            Map.entry("free", "Découverte"),
+            Map.entry("pro", "Professionnel"),
+            Map.entry("business", "Business"),
+            Map.entry("integration", "Intégration API"),
+            Map.entry("enterprise", "Enterprise")
         );
 
         return rows.stream().map(r -> {
@@ -863,7 +869,7 @@ public class AdminService {
                 "ORDER BY s.createdAt DESC"
             ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
         } catch (NoResultException e) {
-            return "free";
+            return "discovery";
         }
     }
 
@@ -881,7 +887,7 @@ public class AdminService {
     private String mapSubscriptionStatus(String subStatus) {
         return switch (subStatus) {
             case "ACTIVE" -> "active";
-            case "TRIAL" -> "trial";
+            case "TRIAL" -> "trial";     // Découverte = essai 14 jours
             case "EXPIRED" -> "expired";
             case "CANCELLED" -> "suspended";
             default -> "active";
