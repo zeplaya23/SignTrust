@@ -56,7 +56,7 @@ public class OtpService {
                 + "</div>"
                 + "<p style='color:#94A3B8;font-size:12px;margin:0'>Ce code expire dans 5 minutes. Si vous n'avez pas fait cette demande, ignorez cet email.</p>"
                 + "</div>"
-                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
                 + "</div>"
         ));
 

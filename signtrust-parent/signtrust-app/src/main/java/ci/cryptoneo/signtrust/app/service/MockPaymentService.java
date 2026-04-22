@@ -73,14 +73,14 @@ public class MockPaymentService {
                     + "</div>"
                     + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                     + "<p style='color:#1E293B;font-size:18px;font-weight:700;margin:0 0 4px'>Bienvenue !</p>"
-                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Votre abonnement <strong style='color:#0083BF'>" + planLabel + "</strong> est active.</p>"
+                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Votre abonnement <strong style='color:#0083BF'>" + planLabel + "</strong> est activé.</p>"
                     + planInfo
                     + "<div style='background:#F8FAFC;border-radius:12px;padding:16px;margin:16px 0'>"
                     + "<p style='font-size:13px;color:#64748B;margin:0'>Reference : <strong style='color:#1E293B'>" + reference + "</strong></p>"
                     + (req.amount() > 0 ? "<p style='font-size:13px;color:#64748B;margin:8px 0 0'>Montant : <strong style='color:#1E293B'>" + req.amount() + " FCFA/mois</strong></p>" : "")
                     + "</div>"
                     + "</div>"
-                    + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
+                    + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
                     + "</div>"
             ));
         } catch (Exception e) {

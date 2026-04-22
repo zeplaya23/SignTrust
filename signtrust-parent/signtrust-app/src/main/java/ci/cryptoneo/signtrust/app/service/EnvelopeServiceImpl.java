@@ -594,7 +594,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
                 + "<p style='color:#1E293B;font-size:16px;font-weight:600;margin:0 0 4px'>Invitation a signer</p>"
                 + "<p style='color:#64748B;font-size:13px;margin:0 0 20px'>Bonjour " + (signerName != null ? signerName : "") + ",</p>"
                 + "<div style='background:#F8FAFC;border-left:4px solid #0083BF;border-radius:0 8px 8px 0;padding:16px;margin:0 0 20px'>"
-                + "<p style='color:#334155;font-size:14px;margin:0'>Vous avez ete invite(e) a signer :</p>"
+                + "<p style='color:#334155;font-size:14px;margin:0'>Vous avez été invité(e) à signer :</p>"
                 + "<p style='color:#0083BF;font-size:15px;font-weight:700;margin:8px 0 0'>" + envelopeName + "</p>"
                 + "</div>"
                 + (message != null && !message.isEmpty() ? "<p style='color:#64748B;font-size:13px;font-style:italic;margin:0 0 20px;padding:12px;background:#FFFBEB;border-radius:8px;border:1px solid #FDE68A'>" + message + "</p>" : "")
@@ -606,7 +606,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
                 + "<p style='color:#94A3B8;font-size:11px;text-align:center;margin:0'>Si le bouton ne fonctionne pas, copiez ce lien :<br/>"
                 + "<a href='" + signingLink + "' style='color:#0083BF;word-break:break-all;font-size:11px'>" + signingLink + "</a></p>"
                 + "</div>"
-                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
                 + "</div>";
     }
 }

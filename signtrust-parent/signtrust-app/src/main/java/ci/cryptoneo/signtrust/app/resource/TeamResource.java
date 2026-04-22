@@ -125,16 +125,16 @@ public class TeamResource {
                     + "</div>"
                     + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                     + "<p style='color:#1E293B;font-size:15px;margin:0 0 16px'>Bonjour " + req.firstName() + ",</p>"
-                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Vous avez ete invite(e) a rejoindre votre equipe sur DigiSign Parapheur.</p>"
+                    + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Vous avez été invité(e) à rejoindre votre équipe sur DigiSign Parapheur.</p>"
                     + "<div style='background:#F0F9FF;border-radius:12px;padding:20px;text-align:center;margin:0 0 20px'>"
                     + "<p style='color:#64748B;font-size:12px;margin:0 0 8px'>Votre mot de passe temporaire</p>"
                     + "<span style='font-size:22px;font-weight:800;letter-spacing:3px;color:#0083BF'>" + tempPassword + "</span>"
                     + "</div>"
-                    + "<p style='color:#EF4444;font-size:13px;font-weight:600;margin:0'>Veuillez le modifier lors de votre premiere connexion.</p>"
+                    + "<p style='color:#EF4444;font-size:13px;font-weight:600;margin:0'>Veuillez le modifier lors de votre première connexion.</p>"
                     + "</div>"
-                    + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
+                    + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
                     + "</div>";
-            notificationService.sendEmail(req.email(), "DigiSign Parapheur — Invitation equipe", html);
+            notificationService.sendEmail(req.email(), "DigiSign Parapheur — Invitation équipe", html);
 
             return Response.status(Response.Status.CREATED)
                     .entity(new TeamMemberDto(userId, req.email(), req.firstName(), req.lastName(), req.role()))

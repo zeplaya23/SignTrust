@@ -369,14 +369,14 @@ public class AdminService {
         try {
             String loginUrl = frontendUrl;
             mailer.send(Mail.withHtml(request.email(),
-                "DigiSign Parapheur — Votre compte administrateur est pret",
+                "DigiSign Parapheur — Votre compte administrateur est prêt",
                 "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
                 + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
                 + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
                 + "</div>"
                 + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
                 + "<p style='color:#1E293B;font-size:18px;font-weight:700;margin:0 0 4px'>Bienvenue !</p>"
-                + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Votre organisation <strong style='color:#1E293B'>" + request.name() + "</strong> a ete creee avec succes.</p>"
+                + "<p style='color:#64748B;font-size:14px;margin:0 0 20px'>Votre organisation <strong style='color:#1E293B'>" + request.name() + "</strong> a été créée avec succès.</p>"
                 + "<div style='background:#F0F9FF;border-radius:12px;padding:20px;margin:0 0 20px'>"
                 + "<p style='font-size:13px;color:#64748B;margin:0 0 4px'>Email</p>"
                 + "<p style='font-size:15px;font-weight:600;color:#1E293B;margin:0 0 12px'>" + request.email() + "</p>"
@@ -385,13 +385,13 @@ public class AdminService {
                 + "<span style='font-size:22px;font-weight:800;letter-spacing:3px;color:#0083BF'>" + tempPassword + "</span>"
                 + "</div>"
                 + "</div>"
-                + "<p style='color:#EF4444;font-size:13px;font-weight:600;margin:0 0 20px'>Vous devrez changer ce mot de passe a la premiere connexion.</p>"
+                + "<p style='color:#EF4444;font-size:13px;font-weight:600;margin:0 0 20px'>Vous devrez changer ce mot de passe à la première connexion.</p>"
                 + "<div style='text-align:center'>"
                 + "<a href='" + loginUrl + "' style='display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#0083BF,#005A8C);color:#fff;border-radius:12px;text-decoration:none;font-weight:700;font-size:15px'>Se connecter</a>"
                 + "</div>"
                 + "<p style='color:#94A3B8;font-size:12px;margin-top:20px;text-align:center'>Plan : " + request.plan().toUpperCase() + "</p>"
                 + "</div>"
-                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Cote d'Ivoire</p>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
                 + "</div>"
             ));
             LOG.infof("Invitation email sent to %s", request.email());
