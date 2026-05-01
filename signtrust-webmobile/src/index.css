@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+
+  /* Cryptoneo palette */
+  --color-primary: #0083BF;
+  --color-primary-light: #E6F4FB;
+  --color-primary-dark: #006A99;
+  --color-accent: #4E901F;
+  --color-accent-light: #EEF6E8;
+  --color-accent-dark: #3E7318;
+
+  --color-success: #177A4B;
+  --color-success-light: #ECFDF3;
+  --color-danger: #C0392B;
+  --color-danger-light: #FEF2F0;
+  --color-warning: #B8860B;
+  --color-warning-light: #FFFBEB;
+
+  --color-ink: #0F172A;
+  --color-ink-soft: #1A1D21;
+  --color-muted: #5F6B7A;
+  --color-faint: #94A3B8;
+
+  --color-line: #E8ECF1;
+  --color-line-soft: #F1F5F9;
+  --color-surface: #FFFFFF;
+  --color-canvas: #F4F7FA;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink-soft);
+  background: var(--color-canvas);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Reserve safe areas (notch / home bar) */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Hide scrollbar on mobile carousels */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* Mobile shell — constrain max width on tablets/desktop */
+.mobile-shell {
+  max-width: 480px;
+  margin-inline: auto;
+  min-height: 100dvh;
+  background: var(--color-canvas);
+  position: relative;
+}
+
+/* Active tap state for buttons */
+button:active, a:active { transform: translateY(0.5px); }
+
+/* Signature pad canvas */
+canvas.sig-pad {
+  touch-action: none;
+  background: #fff;
+}
