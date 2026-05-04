@@ -47,6 +47,10 @@ export const envelopeService = {
     await api.post(`/envelopes/${id}/cancel`);
   },
 
+  async resendInvitation(envelopeId: number, signatoryId: number): Promise<void> {
+    await api.post(`/envelopes/${envelopeId}/signatories/${signatoryId}/resend`);
+  },
+
   // Documents
   async uploadDocument(envelopeId: number, file: File): Promise<Document> {
     const formData = new FormData();

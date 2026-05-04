@@ -7,6 +7,7 @@ import {
   RefreshCw,
   FileText,
   Loader2,
+  Send,
 } from 'lucide-react';
 import clsx from 'clsx';
 import Card from '../../components/ui/Card';
@@ -26,7 +27,7 @@ function statusToBadge(status: EnvelopeStatus): 'pending' | 'signed' | 'rejected
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDateTime(iso: string) {
@@ -48,6 +49,10 @@ const ACTION_LABELS: Record<string, string> = {
   ENVELOPE_COMPLETED: 'Signature terminée',
   ENVELOPE_CANCELLED: 'Enveloppe annulée',
   ENVELOPE_DELETED: 'Enveloppe supprimée',
+  SIGNATURE_CONFIRMED: 'Confirmation de signature envoyée',
+  OTP_SENT: 'Code de vérification envoyé',
+  OTP_VERIFIED: 'Identité vérifiée par code',
+  INVITATION_RESENT: 'Invitation renvoyée',
 };
 
 function actionLabel(action: string): string {
@@ -65,6 +70,7 @@ export default function EnvelopeDetail() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [downloadingDocId, setDownloadingDocId] = useState<number | null>(null);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [resendingSigId, setResendingSigId] = useState<number | null>(null);
 
   // Fetch envelope detail
   const fetchEnvelope = useCallback(async (envId: string, signal: AbortSignal) => {
@@ -86,6 +92,18 @@ export default function EnvelopeDetail() {
     fetchEnvelope(id, controller.signal);
     return () => controller.abort();
   }, [id, fetchEnvelope]);
+
+  const handleResend = async (sigId: number) => {
+    if (!envelope) return;
+    setResendingSigId(sigId);
+    try {
+      await envelopeService.resendInvitation(envelope.id, sigId);
+      // Refresh to update audit trail
+      const controller = new AbortController();
+      fetchEnvelope(String(envelope.id), controller.signal);
+    } catch { /* ignore */ }
+    setResendingSigId(null);
+  };
 
   // Fetch PDF blob when active doc changes
   const blobUrlRef = useRef<string | null>(null);
@@ -215,28 +233,32 @@ export default function EnvelopeDetail() {
           </div>
 
           {/* Document preview */}
-          <Card className="min-h-[600px] overflow-hidden relative">
-            {/* Download active doc button */}
-            {envelope.documents[activeDoc] && (
-              <button
-                onClick={() => handleDownloadDoc(envelope.documents[activeDoc].id, envelope.documents[activeDoc].name)}
-                disabled={downloadingDocId === envelope.documents[activeDoc].id}
-                className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur border border-border shadow-sm text-xs font-medium text-txt hover:text-primary hover:border-primary/30 transition-colors disabled:opacity-50"
-                title={`Télécharger ${envelope.documents[activeDoc].name}`}
-              >
-                {downloadingDocId === envelope.documents[activeDoc].id
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Download size={13} />
-                }
-                Télécharger
-              </button>
-            )}
+          <Card className="min-h-[600px] overflow-hidden">
             {pdfLoading ? (
               <div className="flex items-center justify-center h-full min-h-[600px]">
                 <Loader2 size={24} className="animate-spin text-primary" />
               </div>
             ) : pdfBlobUrl ? (
-              <PdfViewer url={pdfBlobUrl} className="min-h-[600px]" />
+              <PdfViewer
+                url={pdfBlobUrl}
+                className="min-h-[600px]"
+                toolbarRight={
+                  envelope.documents[activeDoc] && (
+                    <button
+                      onClick={() => handleDownloadDoc(envelope.documents[activeDoc].id, envelope.documents[activeDoc].name)}
+                      disabled={downloadingDocId === envelope.documents[activeDoc].id}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-primary hover:bg-primary-light transition-colors disabled:opacity-50 cursor-pointer"
+                      title={`Télécharger ${envelope.documents[activeDoc].name}`}
+                    >
+                      {downloadingDocId === envelope.documents[activeDoc].id
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <Download size={13} />
+                      }
+                      Télécharger
+                    </button>
+                  )
+                }
+              />
             ) : (
               <div className="flex items-center justify-center h-full min-h-[600px]">
                 <div className="text-center">
@@ -338,6 +360,20 @@ export default function EnvelopeDetail() {
                           {formatDateTime(sig.signedAt)}
                         </span>
                       )}
+                      {sig.status === 'PENDING' && envelope.status === 'SENT' && (
+                        <button
+                          onClick={() => handleResend(sig.id)}
+                          disabled={resendingSigId === sig.id}
+                          className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {resendingSigId === sig.id ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Send size={10} />
+                          )}
+                          Renvoyer
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -351,9 +387,9 @@ export default function EnvelopeDetail() {
             <h3 className="text-sm font-semibold text-dark mb-3">Parcours & Historique</h3>
             <div className="relative">
               {envelope.auditTrail!.map((entry, i) => {
-                const isSuccess = entry.action === 'DOCUMENT_SIGNED' || entry.action === 'ENVELOPE_COMPLETED';
+                const isSuccess = entry.action === 'DOCUMENT_SIGNED' || entry.action === 'ENVELOPE_COMPLETED' || entry.action === 'OTP_VERIFIED' || entry.action === 'SIGNATURE_CONFIRMED';
                 const isError = entry.action === 'DOCUMENT_REJECTED' || entry.action === 'ENVELOPE_CANCELLED';
-                const isSend = entry.action === 'ENVELOPE_SENT';
+                const isSend = entry.action === 'ENVELOPE_SENT' || entry.action === 'OTP_SENT' || entry.action === 'INVITATION_RESENT';
                 const dotColor = isSuccess
                   ? 'bg-success'
                   : isError

@@ -7,6 +7,7 @@ import ci.cryptoneo.signtrust.app.entity.SignatoryEntity;
 import ci.cryptoneo.signtrust.app.service.DtoMapper;
 import ci.cryptoneo.signtrust.app.service.EnvelopeServiceImpl;
 import ci.cryptoneo.signtrust.app.service.OtpService;
+import ci.cryptoneo.signtrust.audit.AuditService;
 import ci.cryptoneo.signtrust.storage.StorageService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -28,6 +29,9 @@ public class SignResource {
 
     @Inject
     OtpService otpService;
+
+    @Inject
+    AuditService auditService;
 
     @GET
     @Path("/{token}")
@@ -94,7 +98,10 @@ public class SignResource {
     public Response sendOtp(@PathParam("token") String token) {
         try {
             SignatoryEntity sig = envelopeService.findSignatoryByToken(token);
+            EnvelopeEntity envelope = sig.getEnvelope();
             otpService.generateAndSend(sig.getEmail());
+            auditService.log(envelope.getTenantId(), "OTP_SENT", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
+                    "Code OTP envoyé à " + sig.getEmail());
             return Response.ok(ApiResponse.ok("Code OTP envoyé")).build();
         } catch (Exception e) {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
@@ -107,8 +114,11 @@ public class SignResource {
     @Path("/{token}/otp/verify")
     public Response verifyOtp(@PathParam("token") String token, OtpVerifyRequest req) {
         SignatoryEntity sig = envelopeService.findSignatoryByToken(token);
+        EnvelopeEntity envelope = sig.getEnvelope();
         boolean valid = otpService.verify(sig.getEmail(), req.code());
         if (valid) {
+            auditService.log(envelope.getTenantId(), "OTP_VERIFIED", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
+                    "Code OTP vérifié par " + sig.getEmail());
             return Response.ok(ApiResponse.ok("Code vérifié avec succès")).build();
         } else {
             return Response.status(Response.Status.BAD_REQUEST)

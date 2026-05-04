@@ -1,9 +1,16 @@
 package ci.cryptoneo.signtrust.app.resource;
 
 import ci.cryptoneo.signtrust.app.dto.AdminTenantCreateRequest;
+import ci.cryptoneo.signtrust.app.dto.EnvelopeDto;
+import ci.cryptoneo.signtrust.app.entity.EnvelopeEntity;
+import ci.cryptoneo.signtrust.app.entity.UserProfileEntity;
 import ci.cryptoneo.signtrust.app.service.AdminService;
+import ci.cryptoneo.signtrust.app.service.DtoMapper;
+import ci.cryptoneo.signtrust.app.service.EnvelopeServiceImpl;
+import ci.cryptoneo.signtrust.audit.AuditLogEntity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -16,6 +23,12 @@ public class AdminTenantResource {
 
     @Inject
     AdminService adminService;
+
+    @Inject
+    EnvelopeServiceImpl envelopeService;
+
+    @Inject
+    EntityManager em;
 
     @GET
     public Response list(
@@ -67,6 +80,12 @@ public class AdminTenantResource {
     }
 
     @GET
+    @Path("/{id}/contacts")
+    public Response contacts(@PathParam("id") String tenantId) {
+        return Response.ok(adminService.getTenantContacts(tenantId)).build();
+    }
+
+    @GET
     @Path("/{id}/stats")
     public Response stats(@PathParam("id") String tenantId) {
         return Response.ok(adminService.getTenantStats(tenantId)).build();
@@ -96,10 +115,53 @@ public class AdminTenantResource {
         return Response.ok(adminService.getTenantAuditLog(tenantId)).build();
     }
 
+    @GET
+    @Path("/{id}/envelopes/{envId}")
+    public Response envelopeDetail(@PathParam("id") String tenantId, @PathParam("envId") Long envId) {
+        EnvelopeEntity envelope = envelopeService.findEnvelope(envId, tenantId);
+        if (envelope == null) return Response.status(Response.Status.NOT_FOUND).build();
+        java.util.List<AuditLogEntity> auditLogs = envelopeService.getAuditTrail(tenantId, envId);
+        EnvelopeDto dto = DtoMapper.toEnvelopeDto(envelope, auditLogs);
+        // Resolve createdBy UUID to a human-readable name
+        String creatorName = dto.createdBy();
+        try {
+            UserProfileEntity creator = em.createQuery(
+                "SELECT u FROM UserProfileEntity u WHERE u.keycloakId = :kid", UserProfileEntity.class)
+                .setParameter("kid", dto.createdBy()).setMaxResults(1).getSingleResult();
+            String fn = creator.getFirstName() != null ? creator.getFirstName() : "";
+            String ln = creator.getLastName() != null ? creator.getLastName() : "";
+            creatorName = (fn + " " + ln).trim();
+            if (creatorName.isEmpty()) creatorName = creator.getEmail();
+        } catch (Exception ignored) {}
+        // Return with resolved name
+        return Response.ok(new EnvelopeDto(
+            dto.id(), dto.name(), dto.status(), creatorName,
+            dto.message(), dto.signingOrder(), dto.expiresAt(),
+            dto.createdAt(), dto.updatedAt(), dto.documentsCount(), dto.signatoriesCount(),
+            dto.documents(), dto.signatories(), dto.fields(), dto.auditTrail()
+        )).build();
+    }
+
     @DELETE
     @Path("/{id}/users/{uid}/mfa")
     public Response resetMfa(@PathParam("id") String tenantId, @PathParam("uid") String userId) {
         adminService.resetUserMfa(tenantId, userId);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/{id}/users/{uid}/details")
+    public Response memberDetail(@PathParam("id") String tenantId, @PathParam("uid") String userId) {
+        var detail = adminService.getMemberDetail(tenantId, userId);
+        if (detail == null) return Response.status(Response.Status.NOT_FOUND).build();
+        return Response.ok(detail).build();
+    }
+
+    @GET
+    @Path("/{id}/contacts/{cid}/details")
+    public Response contactDetail(@PathParam("id") String tenantId, @PathParam("cid") Long contactId) {
+        var detail = adminService.getContactDetail(tenantId, contactId);
+        if (detail == null) return Response.status(Response.Status.NOT_FOUND).build();
+        return Response.ok(detail).build();
     }
 }

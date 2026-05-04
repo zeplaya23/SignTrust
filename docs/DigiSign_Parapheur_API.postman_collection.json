@@ -1,0 +1,702 @@
+{
+	"info": {
+		"_postman_id": "digisign-parapheur-api-keys",
+		"name": "DigiSign Parapheur - API Integrateurs",
+		"description": "Collection Postman pour les integrateurs utilisant les cles API DigiSign Parapheur.\n\n## Configuration\n1. Definir la variable `base_url` avec l'URL de votre serveur\n2. Definir la variable `api_key` avec votre cle API (dsp_...)\n\n## Workflow\n1. Verifier le statut de l'API\n2. Creer une enveloppe\n3. Ajouter un document PDF\n4. Ajouter un ou plusieurs signataires\n5. Positionner les champs de signature\n6. Envoyer l'enveloppe",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "key",
+				"value": "X-API-Key",
+				"type": "string"
+			},
+			{
+				"key": "value",
+				"value": "{{api_key}}",
+				"type": "string"
+			},
+			{
+				"key": "in",
+				"value": "header",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://158.220.112.175:5080",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "dsp_VOTRE_CLE_API_ICI",
+			"type": "string"
+		},
+		{
+			"key": "envelope_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "document_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "signatory_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "field_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "0. Statut API",
+			"item": [
+				{
+					"name": "Verifier le statut",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "status"]
+						},
+						"description": "Verifie que l'API est disponible. Pas besoin de cle API."
+					}
+				}
+			]
+		},
+		{
+			"name": "1. Enveloppes",
+			"item": [
+				{
+					"name": "Creer une enveloppe",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('envelope_id', jsonData.id);",
+									"    console.log('envelope_id = ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Contrat de prestation 2026\",\n  \"message\": \"Merci de bien vouloir signer ce contrat.\",\n  \"signingOrder\": \"PARALLEL\",\n  \"expiresAt\": \"2026-12-31T23:59:59\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes"]
+						},
+						"description": "Cree une nouvelle enveloppe en brouillon. L'ID est automatiquement sauvegarde dans la variable `envelope_id`."
+					}
+				},
+				{
+					"name": "Lister les enveloppes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes?page=0&size=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "status",
+									"value": "DRAFT",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Liste les enveloppes du compte. Filtrable par statut : DRAFT, SENT, COMPLETED, CANCELLED."
+					}
+				},
+				{
+					"name": "Detail d'une enveloppe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}"]
+						},
+						"description": "Retourne le detail complet d'une enveloppe avec documents, signataires, champs et piste d'audit."
+					}
+				},
+				{
+					"name": "Modifier une enveloppe",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Contrat modifie\",\n  \"message\": \"Message mis a jour\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}"]
+						},
+						"description": "Modifie une enveloppe en statut DRAFT."
+					}
+				},
+				{
+					"name": "Envoyer l'enveloppe",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/send",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "send"]
+						},
+						"description": "Envoie l'enveloppe aux signataires. L'enveloppe doit contenir au moins un document et un signataire."
+					}
+				},
+				{
+					"name": "Annuler une enveloppe",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "cancel"]
+						},
+						"description": "Annule une enveloppe en cours."
+					}
+				},
+				{
+					"name": "Supprimer une enveloppe",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}"]
+						},
+						"description": "Supprime une enveloppe en statut DRAFT."
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Documents",
+			"item": [
+				{
+					"name": "Ajouter un document PDF",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('document_id', jsonData.id);",
+									"    console.log('document_id = ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"description": "Fichier PDF a signer",
+									"type": "file",
+									"src": ""
+								},
+								{
+									"key": "name",
+									"value": "Contrat principal",
+									"description": "Nom du document (optionnel)",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/documents",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "documents"]
+						},
+						"description": "Ajoute un fichier PDF a l'enveloppe. L'ID du document est automatiquement sauvegarde."
+					}
+				},
+				{
+					"name": "Telecharger un document",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/documents/{{document_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "documents", "{{document_id}}"]
+						},
+						"description": "Telecharge le fichier PDF d'un document."
+					}
+				},
+				{
+					"name": "Telecharger tous les documents (ZIP)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/documents/zip",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "documents", "zip"]
+						},
+						"description": "Telecharge une archive ZIP contenant tous les documents de l'enveloppe."
+					}
+				},
+				{
+					"name": "Supprimer un document",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/documents/{{document_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "documents", "{{document_id}}"]
+						},
+						"description": "Supprime un document de l'enveloppe."
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Signataires",
+			"item": [
+				{
+					"name": "Ajouter un signataire",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('signatory_id', jsonData.id);",
+									"    console.log('signatory_id = ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"signataire@example.com\",\n  \"firstName\": \"Jean\",\n  \"lastName\": \"Dupont\",\n  \"role\": \"SIGNER\",\n  \"orderIndex\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/signatories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "signatories"]
+						},
+						"description": "Ajoute un signataire a l'enveloppe. L'ID est automatiquement sauvegarde."
+					}
+				},
+				{
+					"name": "Lister les signataires",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/signatories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "signatories"]
+						},
+						"description": "Liste les signataires d'une enveloppe."
+					}
+				},
+				{
+					"name": "Modifier un signataire",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"nouveau@example.com\",\n  \"firstName\": \"Marie\",\n  \"lastName\": \"Martin\",\n  \"role\": \"SIGNER\",\n  \"orderIndex\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/signatories/{{signatory_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "signatories", "{{signatory_id}}"]
+						},
+						"description": "Modifie les informations d'un signataire."
+					}
+				},
+				{
+					"name": "Supprimer un signataire",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/signatories/{{signatory_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "signatories", "{{signatory_id}}"]
+						},
+						"description": "Supprime un signataire de l'enveloppe."
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Champs de signature",
+			"item": [
+				{
+					"name": "Ajouter un champ de signature",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.id) {",
+									"    pm.collectionVariables.set('field_id', jsonData.id);",
+									"    console.log('field_id = ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentId\": {{document_id}},\n  \"signatoryId\": {{signatory_id}},\n  \"type\": \"SIGNATURE\",\n  \"pageNumber\": 1,\n  \"x\": 100.0,\n  \"y\": 650.0,\n  \"width\": 200.0,\n  \"height\": 80.0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/fields",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "fields"]
+						},
+						"description": "Positionne un champ de signature sur un document pour un signataire.\n\nTypes : SIGNATURE, INITIALS, DATE, TEXT\n\nCoordonnees en points PDF (72 pts/pouce). x,y partent du coin bas-gauche."
+					}
+				},
+				{
+					"name": "Lister les champs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/fields",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "fields"]
+						},
+						"description": "Liste tous les champs de signature de l'enveloppe."
+					}
+				},
+				{
+					"name": "Modifier un champ",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentId\": {{document_id}},\n  \"signatoryId\": {{signatory_id}},\n  \"type\": \"SIGNATURE\",\n  \"pageNumber\": 1,\n  \"x\": 150.0,\n  \"y\": 600.0,\n  \"width\": 200.0,\n  \"height\": 80.0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/fields/{{field_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "fields", "{{field_id}}"]
+						},
+						"description": "Modifie la position ou le type d'un champ de signature."
+					}
+				},
+				{
+					"name": "Supprimer un champ",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/fields/{{field_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "fields", "{{field_id}}"]
+						},
+						"description": "Supprime un champ de signature."
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Tableau de bord",
+			"item": [
+				{
+					"name": "Statistiques",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "stats"]
+						},
+						"description": "Retourne les statistiques du compte : nombre total d'enveloppes par statut."
+					}
+				},
+				{
+					"name": "Enveloppes recentes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/recent",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "recent"]
+						},
+						"description": "Retourne les enveloppes les plus recentes."
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Workflow complet",
+			"item": [
+				{
+					"name": "STEP 1 - Creer enveloppe",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('envelope_id', jsonData.id);",
+									"pm.test('Enveloppe creee', function() {",
+									"    pm.response.to.have.status(201);",
+									"    pm.expect(jsonData.status).to.eql('DRAFT');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test workflow API\",\n  \"message\": \"Document a signer via API\",\n  \"signingOrder\": \"PARALLEL\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes"]
+						}
+					}
+				},
+				{
+					"name": "STEP 2 - Ajouter document",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('document_id', jsonData.id);",
+									"pm.test('Document ajoute', function() {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "",
+									"description": "Selectionnez un fichier PDF"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/documents",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "documents"]
+						}
+					}
+				},
+				{
+					"name": "STEP 3 - Ajouter signataire",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('signatory_id', jsonData.id);",
+									"pm.test('Signataire ajoute', function() {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"signataire@example.com\",\n  \"firstName\": \"Jean\",\n  \"lastName\": \"Dupont\",\n  \"role\": \"SIGNER\",\n  \"orderIndex\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/signatories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "signatories"]
+						}
+					}
+				},
+				{
+					"name": "STEP 4 - Positionner signature",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Champ ajoute', function() {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentId\": {{document_id}},\n  \"signatoryId\": {{signatory_id}},\n  \"type\": \"SIGNATURE\",\n  \"pageNumber\": 1,\n  \"x\": 100.0,\n  \"y\": 650.0,\n  \"width\": 200.0,\n  \"height\": 80.0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/fields",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "fields"]
+						}
+					}
+				},
+				{
+					"name": "STEP 5 - Envoyer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Enveloppe envoyee', function() {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/envelopes/{{envelope_id}}/send",
+							"host": ["{{base_url}}"],
+							"path": ["api", "envelopes", "{{envelope_id}}", "send"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

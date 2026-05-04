@@ -1,6 +1,6 @@
 # signtrust-webmobile
 
-Version mobile-first de **diSign Parapheur** (Cryptoneo). Le site `signtrust-frontend`
+Version mobile-first de **DigiSign Parapheur** (Cryptoneo). Le site `signtrust-frontend`
 détecte automatiquement les périphériques mobiles et redirige vers cette application,
 qui propose une expérience repensée pour le tactile : navigation par onglets en bas,
 sheets coulissantes, signature au doigt.

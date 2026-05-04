@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "Version mobile-first de SignTrust diSign Parapheur",
+  "description": "Version mobile-first de SignTrust DigiSign Parapheur",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

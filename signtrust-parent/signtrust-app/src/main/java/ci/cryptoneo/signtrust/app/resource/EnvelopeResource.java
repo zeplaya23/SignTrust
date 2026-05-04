@@ -92,4 +92,5 @@ public class EnvelopeResource {
         envelopeService.cancelEnvelope(id, tenantId);
         return Response.ok(ApiResponse.ok("Enveloppe annulee")).build();
     }
+
 }

@@ -1,6 +1,7 @@
 package ci.cryptoneo.signtrust.app.service;
 
 import ci.cryptoneo.signtrust.app.dto.*;
+import ci.cryptoneo.signtrust.app.entity.ContactEntity;
 import ci.cryptoneo.signtrust.app.entity.UserProfileEntity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -511,16 +512,25 @@ public class AdminService {
             String lastActivity = "—";
             try {
                 LocalDateTime lastAudit = (LocalDateTime) em.createQuery(
-                    "SELECT MAX(a.createdAt) FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.userId = :uid"
-                ).setParameter("uid", u.getKeycloakId()).getSingleResult();
+                    "SELECT MAX(a.createdAt) FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.userId = :uid OR a.userId = :email"
+                ).setParameter("uid", u.getKeycloakId()).setParameter("email", u.getEmail()).getSingleResult();
                 if (lastAudit != null) {
                     long daysAgo = ChronoUnit.DAYS.between(lastAudit, LocalDateTime.now());
                     lastActivity = daysAgo == 0 ? "Aujourd'hui" : daysAgo == 1 ? "Hier" : daysAgo + "j";
                 }
             } catch (Exception ignored) {}
 
-            return new AdminTenantUserDto(String.valueOf(u.getId()), name.trim(), role, lastActivity);
+            return new AdminTenantUserDto(u.getKeycloakId() != null ? u.getKeycloakId() : String.valueOf(u.getId()), name.trim(), u.getEmail(), u.getPhone(), role, lastActivity);
         }).toList();
+    }
+
+    public List<ContactDto> getTenantContacts(String tenantId) {
+        @SuppressWarnings("unchecked")
+        List<ContactEntity> contacts = em.createQuery(
+            "SELECT c FROM ContactEntity c WHERE c.tenantId = :tid ORDER BY c.name ASC"
+        ).setParameter("tid", tenantId).getResultList();
+
+        return contacts.stream().map(DtoMapper::toContactDto).toList();
     }
 
     public AdminDashboardDto getTenantStats(String tenantId) {
@@ -1076,6 +1086,142 @@ public class AdminService {
             case "CANCELLED" -> "suspended";
             default -> "active";
         };
+    }
+
+    // ─── Member detail ───
+    public MemberDetailDto getMemberDetail(String tenantId, String userId) {
+        // Find user in Keycloak
+        var tenant = getTenant(tenantId);
+        if (tenant == null) return null;
+        String realm = tenant.realmKeycloak() != null ? tenant.realmKeycloak() : tenantId;
+
+        UserRepresentation kcUser = null;
+        try {
+            kcUser = keycloak.realm(realm).users().get(userId).toRepresentation();
+        } catch (Exception e) {
+            LOG.warnf("Could not find user %s in realm %s", userId, realm);
+        }
+
+        // Find profile in DB
+        UserProfileEntity profile = null;
+        try {
+            profile = em.createQuery("SELECT u FROM UserProfileEntity u WHERE u.keycloakId = :kid", UserProfileEntity.class)
+                .setParameter("kid", userId).setMaxResults(1).getSingleResult();
+        } catch (Exception ignored) {}
+
+        String name;
+        if (kcUser != null) {
+            name = ((kcUser.getFirstName() != null ? kcUser.getFirstName() : "") + " " + (kcUser.getLastName() != null ? kcUser.getLastName() : "")).trim();
+        } else if (profile != null) {
+            name = ((profile.getFirstName() != null ? profile.getFirstName() : "") + " " + (profile.getLastName() != null ? profile.getLastName() : "")).trim();
+        } else {
+            name = userId;
+        }
+        if (name.isBlank() && profile != null) name = profile.getEmail();
+        if (name.isBlank()) name = userId;
+        String email = kcUser != null ? kcUser.getEmail() : (profile != null ? profile.getEmail() : "");
+        String phone = profile != null ? profile.getPhone() : null;
+        String role = "Membre";
+        if (kcUser != null) {
+            try {
+                var roles = keycloak.realm(realm).users().get(userId).roles().realmLevel().listEffective();
+                for (var r : roles) {
+                    if ("ADMIN".equalsIgnoreCase(r.getName()) || "admin".equals(r.getName())) { role = "Admin"; break; }
+                }
+            } catch (Exception ignored) {}
+        }
+        String companyName = profile != null ? profile.getCompanyName() : null;
+        String accountType = profile != null ? profile.getAccountType() : null;
+        String createdAt = profile != null && profile.getCreatedAt() != null ? profile.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null;
+
+        // Envelopes created by this user
+        List<ci.cryptoneo.signtrust.app.entity.EnvelopeEntity> envs = em.createQuery(
+            "SELECT e FROM ci.cryptoneo.signtrust.app.entity.EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid ORDER BY e.createdAt DESC",
+            ci.cryptoneo.signtrust.app.entity.EnvelopeEntity.class)
+            .setParameter("tid", tenantId).setParameter("uid", userId).setMaxResults(20).getResultList();
+
+        List<MemberDetailDto.MemberEnvelopeDto> envDtos = envs.stream().map(e -> new MemberDetailDto.MemberEnvelopeDto(
+            e.getId(), e.getName(), e.getStatus(),
+            e.getCreatedAt() != null ? e.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+            e.getSignatories() != null ? e.getSignatories().size() : 0,
+            e.getDocuments() != null ? e.getDocuments().size() : 0
+        )).toList();
+
+        // Participations as signatory (envelopes signed/pending/rejected)
+        List<ci.cryptoneo.signtrust.app.entity.SignatoryEntity> sigParticipations = em.createQuery(
+            "SELECT s FROM ci.cryptoneo.signtrust.app.entity.SignatoryEntity s WHERE s.envelope.tenantId = :tid AND s.email = :email ORDER BY s.envelope.createdAt DESC",
+            ci.cryptoneo.signtrust.app.entity.SignatoryEntity.class)
+            .setParameter("tid", tenantId).setParameter("email", email).setMaxResults(20).getResultList();
+
+        List<MemberDetailDto.MemberParticipationDto> participationDtos = sigParticipations.stream().map(s -> new MemberDetailDto.MemberParticipationDto(
+            s.getEnvelope().getId(),
+            s.getEnvelope().getName(),
+            s.getRole(),
+            s.getStatus(),
+            s.getSignedAt() != null ? s.getSignedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+            s.getEnvelope().getCreatedAt() != null ? s.getEnvelope().getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+        )).toList();
+
+        long signed = sigParticipations.stream().filter(s -> "SIGNED".equals(s.getStatus())).count();
+        long rejected = sigParticipations.stream().filter(s -> "REJECTED".equals(s.getStatus())).count();
+
+        // Audit trail for this user
+        List<ci.cryptoneo.signtrust.audit.AuditLogEntity> auditLogs = em.createQuery(
+            "SELECT a FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.tenantId = :tid AND (a.userId = :uid OR a.userId = :email) ORDER BY a.createdAt DESC",
+            ci.cryptoneo.signtrust.audit.AuditLogEntity.class)
+            .setParameter("tid", tenantId).setParameter("uid", userId).setParameter("email", email).setMaxResults(30).getResultList();
+
+        List<AuditLogDto> auditDtos = auditLogs.stream().map(a -> new AuditLogDto(
+            a.getId(), a.getAction(), a.getUserId(), a.getEntityType(), a.getEntityId(), a.getDetails(),
+            a.getCreatedAt() != null ? a.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+        )).toList();
+
+        return new MemberDetailDto(userId, name, email, phone, role, companyName, accountType, createdAt, null,
+            envs.size(), (int) signed, (int) rejected, envDtos, participationDtos, auditDtos);
+    }
+
+    // ─── Contact detail ───
+    public ContactDetailDto getContactDetail(String tenantId, long contactId) {
+        ContactEntity contact;
+        try {
+            contact = em.createQuery("SELECT c FROM ContactEntity c WHERE c.id = :cid AND c.tenantId = :tid", ContactEntity.class)
+                .setParameter("cid", contactId).setParameter("tid", tenantId).getSingleResult();
+        } catch (Exception e) {
+            return null;
+        }
+
+        // Find envelopes where this contact is a signatory
+        List<ci.cryptoneo.signtrust.app.entity.SignatoryEntity> sigs = em.createQuery(
+            "SELECT s FROM ci.cryptoneo.signtrust.app.entity.SignatoryEntity s WHERE s.envelope.tenantId = :tid AND s.email = :email ORDER BY s.envelope.createdAt DESC",
+            ci.cryptoneo.signtrust.app.entity.SignatoryEntity.class)
+            .setParameter("tid", tenantId).setParameter("email", contact.getEmail()).setMaxResults(20).getResultList();
+
+        List<ContactDetailDto.ContactEnvelopeDto> envDtos = sigs.stream().map(s -> new ContactDetailDto.ContactEnvelopeDto(
+            s.getEnvelope().getId(),
+            s.getEnvelope().getName(),
+            s.getRole(),
+            s.getStatus(),
+            s.getSignedAt() != null ? s.getSignedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+            s.getEnvelope().getCreatedAt() != null ? s.getEnvelope().getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+        )).toList();
+
+        // Audit trail for this contact (by email)
+        List<ci.cryptoneo.signtrust.audit.AuditLogEntity> auditLogs = em.createQuery(
+            "SELECT a FROM ci.cryptoneo.signtrust.audit.AuditLogEntity a WHERE a.tenantId = :tid AND a.userId = :email ORDER BY a.createdAt DESC",
+            ci.cryptoneo.signtrust.audit.AuditLogEntity.class)
+            .setParameter("tid", tenantId).setParameter("email", contact.getEmail()).setMaxResults(30).getResultList();
+
+        List<AuditLogDto> auditDtos = auditLogs.stream().map(a -> new AuditLogDto(
+            a.getId(), a.getAction(), a.getUserId(), a.getEntityType(), a.getEntityId(), a.getDetails(),
+            a.getCreatedAt() != null ? a.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null
+        )).toList();
+
+        return new ContactDetailDto(
+            contact.getId(), contact.getName(), contact.getEmail(), contact.getPhone(),
+            contact.getEnvelopeCount() != null ? contact.getEnvelopeCount() : 0,
+            contact.getCreatedAt() != null ? contact.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : null,
+            envDtos, auditDtos
+        );
     }
 
     private String formatAmount(long amount) {

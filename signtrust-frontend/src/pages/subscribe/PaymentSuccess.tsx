@@ -11,10 +11,12 @@ import type { SubscriptionStatus } from '../../types/subscription';
 function getRenewDate(): string {
   const date = new Date();
   date.setMonth(date.getMonth() + 1);
-  return date.toLocaleDateString('fr-FR', {
+  return date.toLocaleString('fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 

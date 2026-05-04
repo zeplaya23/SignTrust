@@ -13,5 +13,7 @@ export const contactService = {
   getAll: () => api.get<Contact[]>('/contacts').then((r) => r.data),
   create: (data: { name: string; email: string; phone?: string }) =>
     api.post<Contact>('/contacts', data).then((r) => r.data),
+  update: (id: number, data: { name: string; email: string; phone?: string }) =>
+    api.put<Contact>(`/contacts/${id}`, data).then((r) => r.data),
   remove: (id: number) => api.delete(`/contacts/${id}`).then((r) => r.data),
 };

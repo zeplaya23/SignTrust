@@ -16,7 +16,7 @@ function relativeTime(dateStr: string): string {
   const diffD = Math.floor(diffH / 24);
   if (diffD === 1) return 'Hier';
   if (diffD < 7) return `Il y a ${diffD} jours`;
-  return date.toLocaleDateString('fr-FR');
+  return date.toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 const iconMap: Record<string, { icon: typeof Bell; bg: string; text: string }> = {

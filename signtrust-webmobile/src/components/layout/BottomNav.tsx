@@ -55,8 +55,8 @@ const items = [
 
 export default function BottomNav() {
   return (
-    <nav className="sticky bottom-0 z-30 bg-white border-t border-line-soft safe-bottom">
-      <div className="grid grid-cols-5 h-16 items-center">
+    <nav className="sticky bottom-0 z-30 bg-white safe-bottom">
+      <div className="grid grid-cols-5 h-16 items-center border-t border-line-soft px-1">
         {items.map((it) => (
           <NavLink
             key={it.to}
@@ -73,13 +73,13 @@ export default function BottomNav() {
             }
           >
             {it.plus ? (
-              <span className="-mt-6 w-14 h-14 rounded-full bg-primary text-white shadow-lg shadow-primary/30 flex items-center justify-center">
+              <span className="-mt-7 w-14 h-14 rounded-2xl bg-primary text-white shadow-md shadow-primary/30 flex items-center justify-center">
                 {it.icon}
               </span>
             ) : (
               <>
                 {it.icon}
-                <span className="text-[10px] font-medium">{it.label}</span>
+                <span className="text-[10px] font-semibold">{it.label}</span>
               </>
             )}
           </NavLink>

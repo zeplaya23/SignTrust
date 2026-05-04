@@ -11,20 +11,24 @@ function formatPrice(price: number): string {
 function getTrialEndDate(): string {
   const date = new Date();
   date.setDate(date.getDate() + 14);
-  return date.toLocaleDateString('fr-FR', {
+  return date.toLocaleString('fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
 function getRenewDate(): string {
   const date = new Date();
   date.setMonth(date.getMonth() + 1);
-  return date.toLocaleDateString('fr-FR', {
+  return date.toLocaleString('fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 

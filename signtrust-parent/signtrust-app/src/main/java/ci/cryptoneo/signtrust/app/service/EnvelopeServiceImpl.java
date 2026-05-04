@@ -57,7 +57,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         envelope.setCreatedBy(createdBy);
         envelope.setSigningOrder("PARALLEL");
         em.persist(envelope);
-        auditService.log(tenantId, "ENVELOPE_CREATED", createdBy, "ENVELOPE", envelope.getId().toString(), "Envelope created: " + name);
+        auditService.log(tenantId, "ENVELOPE_CREATED", createdBy, "ENVELOPE", envelope.getId().toString(), "Enveloppe créée : " + name);
         return envelope.getId();
     }
 
@@ -72,7 +72,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         envelope.setSigningOrder(req.signingOrder() != null ? req.signingOrder() : "PARALLEL");
         envelope.setExpiresAt(req.expiresAt());
         em.persist(envelope);
-        auditService.log(tenantId, "ENVELOPE_CREATED", createdBy, "ENVELOPE", envelope.getId().toString(), "Envelope created: " + req.name());
+        auditService.log(tenantId, "ENVELOPE_CREATED", createdBy, "ENVELOPE", envelope.getId().toString(), "Enveloppe créée : " + req.name());
         return envelope;
     }
 
@@ -105,7 +105,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             }
         }
         em.remove(envelope);
-        auditService.log(tenantId, "ENVELOPE_DELETED", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(), "Envelope deleted");
+        auditService.log(tenantId, "ENVELOPE_DELETED", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(), "Enveloppe supprimée");
     }
 
     public EnvelopeEntity findEnvelope(Long envelopeId, String tenantId) {
@@ -395,7 +395,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         }
 
         auditService.log(tenantId, "ENVELOPE_SENT", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(),
-                "Envelope sent to " + envelope.getSignatories().size() + " signatories");
+                "Enveloppe envoyée à " + envelope.getSignatories().size() + " signataires");
     }
 
     @Override
@@ -413,7 +413,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         }
         envelope.setStatus("CANCELLED");
         em.merge(envelope);
-        auditService.log(tenantId, "ENVELOPE_CANCELLED", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(), "Envelope cancelled");
+        auditService.log(tenantId, "ENVELOPE_CANCELLED", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(), "Enveloppe annulée");
     }
 
     // --- Signing operations ---
@@ -486,6 +486,15 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         auditService.log(envelope.getTenantId(), "DOCUMENT_SIGNED", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
                 "Signé par " + sig.getFirstName() + " " + sig.getLastName() + " (" + sig.getEmail() + ")");
 
+        // Send confirmation email to the signer
+        try {
+            sendSignatureConfirmation(sig, envelope);
+            auditService.log(envelope.getTenantId(), "SIGNATURE_CONFIRMED", sig.getEmail(), "ENVELOPE", envelope.getId().toString(),
+                    "Email de confirmation envoyé à " + sig.getEmail());
+        } catch (Exception e) {
+            LOG.errorf("Failed to send signature confirmation to %s: %s", sig.getEmail(), e.getMessage());
+        }
+
         // Check if all signatories have signed
         checkEnvelopeCompletion(envelope);
     }
@@ -518,7 +527,9 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             envelope.setStatus("COMPLETED");
             em.merge(envelope);
             auditService.log(envelope.getTenantId(), "ENVELOPE_COMPLETED", envelope.getCreatedBy(), "ENVELOPE",
-                    envelope.getId().toString(), "All signatories have signed");
+                    envelope.getId().toString(), "Tous les signataires ont signé");
+            // Notify the envelope creator that all signatures are complete
+            sendCompletionNotification(envelope);
         } else if ("SEQUENTIAL".equals(envelope.getSigningOrder())) {
             // Sequential mode: send invitation to the next pending signatory
             sendNextSequentialInvitation(envelope);
@@ -538,6 +549,36 @@ public class EnvelopeServiceImpl implements EnvelopeService {
                 .findFirst();
 
         nextSigner.ifPresent(sig -> sendSigningInvitation(sig, envelope));
+    }
+
+    /**
+     * Resends signing invitation to a specific signatory (must be PENDING).
+     */
+    @Transactional
+    public void resendInvitation(Long envelopeId, Long signatoryId, String tenantId) {
+        EnvelopeEntity envelope = findEnvelope(envelopeId, tenantId);
+        if (!"SENT".equals(envelope.getStatus())) {
+            throw new WebApplicationException("L'enveloppe n'est pas en cours de signature", Response.Status.BAD_REQUEST);
+        }
+        SignatoryEntity sig = em.find(SignatoryEntity.class, signatoryId);
+        if (sig == null || !sig.getEnvelope().getId().equals(envelopeId)) {
+            throw new WebApplicationException("Signataire introuvable", Response.Status.NOT_FOUND);
+        }
+        if (!"PENDING".equals(sig.getStatus())) {
+            throw new WebApplicationException("Ce signataire a déjà signé ou refusé", Response.Status.BAD_REQUEST);
+        }
+        // Regenerate token and resend
+        sig.generateToken();
+        em.merge(sig);
+        try {
+            String signingLink = frontendUrl + "/sign/" + sig.getToken();
+            String html = buildSigningEmailHtml(envelope.getName(), sig.getFirstName(), envelope.getMessage(), signingLink);
+            notificationService.sendEmail(sig.getEmail(), "Rappel — Invitation à signer: " + envelope.getName(), html);
+        } catch (Exception e) {
+            LOG.warnf("Failed to resend invitation to %s: %s", sig.getEmail(), e.getMessage());
+        }
+        auditService.log(tenantId, "INVITATION_RESENT", envelope.getCreatedBy(), "ENVELOPE", envelopeId.toString(),
+                "Invitation renvoyée à " + sig.getFirstName() + " " + sig.getLastName() + " (" + sig.getEmail() + ")");
     }
 
     /**
@@ -578,11 +619,77 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
     public List<AuditLogEntity> getAuditTrail(String tenantId, Long envelopeId) {
         return em.createQuery(
-                "SELECT a FROM AuditLogEntity a WHERE a.tenantId = :tid AND a.entityType = 'ENVELOPE' AND a.entityId = :eid ORDER BY a.createdAt ASC",
+                "SELECT a FROM AuditLogEntity a WHERE a.tenantId = :tid AND a.entityType = 'ENVELOPE' AND a.entityId = :eid ORDER BY a.createdAt DESC",
                 AuditLogEntity.class)
                 .setParameter("tid", tenantId)
                 .setParameter("eid", String.valueOf(envelopeId))
                 .getResultList();
+    }
+
+    /**
+     * Sends a confirmation email to a signatory after they have signed.
+     */
+    private void sendSignatureConfirmation(SignatoryEntity sig, EnvelopeEntity envelope) {
+        String dashboardLink = frontendUrl + "/envelopes";
+        String html = "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
+                + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
+                + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                + "</div>"
+                + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
+                + "<div style='text-align:center;margin-bottom:20px'>"
+                + "<div style='width:56px;height:56px;background:#DEF7EC;border-radius:50%;display:inline-flex;align-items:center;justify-content:center'>"
+                + "<span style='font-size:28px'>&#10003;</span>"
+                + "</div>"
+                + "</div>"
+                + "<p style='color:#1E293B;font-size:16px;font-weight:600;margin:0 0 4px;text-align:center'>Signature confirmée</p>"
+                + "<p style='color:#64748B;font-size:13px;margin:0 0 20px;text-align:center'>Bonjour " + sig.getFirstName() + ",</p>"
+                + "<div style='background:#F8FAFC;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:16px;margin:0 0 20px'>"
+                + "<p style='color:#334155;font-size:14px;margin:0'>Votre signature a bien été enregistrée pour :</p>"
+                + "<p style='color:#0083BF;font-size:15px;font-weight:700;margin:8px 0 0'>" + envelope.getName() + "</p>"
+                + "</div>"
+                + "<p style='color:#64748B;font-size:13px;margin:0 0 20px'>Vous recevrez une notification lorsque tous les signataires auront complété le processus.</p>"
+                + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin:0'>Cryptoneo — Côte d'Ivoire</p>"
+                + "</div>"
+                + "</div>";
+        notificationService.sendEmail(sig.getEmail(), "Signature confirmée: " + envelope.getName(), html);
+        LOG.infof("Signature confirmation email sent to %s for envelope %s", sig.getEmail(), envelope.getName());
+    }
+
+    /**
+     * Sends a completion email to the envelope creator when all signatories have signed.
+     */
+    private void sendCompletionNotification(EnvelopeEntity envelope) {
+        try {
+            String envelopeLink = frontendUrl + "/envelopes/" + envelope.getId();
+            String html = "<div style='font-family:Inter,system-ui,sans-serif;max-width:520px;margin:0 auto;padding:0'>"
+                    + "<div style='background:linear-gradient(135deg,#0083BF,#005A8C);padding:28px 32px;border-radius:16px 16px 0 0'>"
+                    + "<h2 style='color:#fff;margin:0;font-size:20px;font-weight:700'>DigiSign <span style=\"font-weight:400;opacity:.7\">Parapheur</span></h2>"
+                    + "</div>"
+                    + "<div style='background:#fff;padding:32px;border:1px solid #E8ECF1;border-top:none;border-radius:0 0 16px 16px'>"
+                    + "<div style='text-align:center;margin-bottom:20px'>"
+                    + "<div style='width:56px;height:56px;background:#DEF7EC;border-radius:50%;display:inline-flex;align-items:center;justify-content:center'>"
+                    + "<span style='font-size:28px'>&#127881;</span>"
+                    + "</div>"
+                    + "</div>"
+                    + "<p style='color:#1E293B;font-size:16px;font-weight:600;margin:0 0 4px;text-align:center'>Enveloppe complétée !</p>"
+                    + "<p style='color:#64748B;font-size:13px;margin:0 0 20px;text-align:center'>Tous les signataires ont signé.</p>"
+                    + "<div style='background:#F8FAFC;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:16px;margin:0 0 20px'>"
+                    + "<p style='color:#334155;font-size:14px;margin:0'>L'enveloppe suivante est maintenant complétée :</p>"
+                    + "<p style='color:#0083BF;font-size:15px;font-weight:700;margin:8px 0 0'>" + envelope.getName() + "</p>"
+                    + "</div>"
+                    + "<div style='text-align:center;margin:24px 0'>"
+                    + "<a href='" + envelopeLink + "' style='display:inline-block;padding:14px 40px;"
+                    + "background:linear-gradient(135deg,#0083BF,#005A8C);color:#fff;text-decoration:none;border-radius:12px;font-weight:700;font-size:15px'>"
+                    + "Voir l'enveloppe</a>"
+                    + "</div>"
+                    + "<p style='color:#94A3B8;font-size:11px;text-align:center;margin:0'>Vous pouvez maintenant télécharger les documents signés.</p>"
+                    + "</div>"
+                    + "<p style='text-align:center;color:#94A3B8;font-size:11px;margin-top:16px'>Cryptoneo — Côte d'Ivoire</p>"
+                    + "</div>";
+            notificationService.sendEmail(envelope.getCreatedBy(), "Enveloppe complétée: " + envelope.getName(), html);
+        } catch (Exception e) {
+            LOG.warnf("Failed to send completion notification to %s: %s", envelope.getCreatedBy(), e.getMessage());
+        }
     }
 
     private String buildSigningEmailHtml(String envelopeName, String signerName, String message, String signingLink) {

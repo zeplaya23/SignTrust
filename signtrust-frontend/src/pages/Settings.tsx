@@ -254,13 +254,13 @@ export default function Settings() {
             {isDiscovery && subscription.endDate && (
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Fin de l'essai</p>
-                <p className="text-sm font-medium text-warning">{new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <p className="text-sm font-medium text-warning">{new Date(subscription.endDate).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             )}
             {!isDiscovery && subscription.endDate && (
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Prochain renouvellement</p>
-                <p className="text-sm font-medium text-txt">{new Date(subscription.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                <p className="text-sm font-medium text-txt">{new Date(subscription.endDate).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             )}
             <div>

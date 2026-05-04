@@ -75,11 +75,19 @@ public class AuthService {
         String keycloakId;
         try (var response = keycloak.realm(realmName).users().create(kcUser)) {
             if (response.getStatus() == 409) {
-                throw new WebApplicationException("Utilisateur déjà existant dans Keycloak", Response.Status.CONFLICT);
+                throw new WebApplicationException("Un compte existe déjà avec cet email.", Response.Status.CONFLICT);
             }
             if (response.getStatus() >= 400) {
-                throw new WebApplicationException("Erreur création Keycloak: " + response.getStatus(),
-                        Response.Status.INTERNAL_SERVER_ERROR);
+                String kcMessage = "";
+                try {
+                    Object body = response.readEntity(String.class);
+                    if (body != null) kcMessage = body.toString();
+                } catch (Exception ignored) { /* body may already be consumed */ }
+                LOG.errorf("Keycloak rejected user creation (status=%d): %s", response.getStatus(), kcMessage);
+
+                String userMsg = humanizeKeycloakError(response.getStatus(), kcMessage);
+                throw new WebApplicationException(userMsg,
+                        response.getStatus() == 400 ? Response.Status.BAD_REQUEST : Response.Status.INTERNAL_SERVER_ERROR);
             }
             String location = response.getLocation().getPath();
             keycloakId = location.substring(location.lastIndexOf('/') + 1);
@@ -260,5 +268,47 @@ public class AuthService {
             while (valueEnd < json.length() && json.charAt(valueEnd) != ',' && json.charAt(valueEnd) != '}') valueEnd++;
             return json.substring(valueStart, valueEnd).trim();
         }
+    }
+
+    /**
+     * Convertit la réponse d'erreur Keycloak en message utilisateur lisible (FR).
+     */
+    private String humanizeKeycloakError(int status, String body) {
+        String b = body != null ? body.toLowerCase() : "";
+
+        if (b.contains("user exists with same email") || b.contains("email already")) {
+            return "Un compte existe déjà avec cet email.";
+        }
+        if (b.contains("user exists with same username")) {
+            return "Cet identifiant est déjà utilisé.";
+        }
+        if (b.contains("invalidpasswordminlengthmessage")) {
+            return "Le mot de passe doit contenir au moins 8 caractères.";
+        }
+        if (b.contains("invalidpasswordminuppercasecharsmessage")) {
+            return "Le mot de passe doit contenir au moins 1 lettre majuscule.";
+        }
+        if (b.contains("invalidpasswordminlowercasecharsmessage")) {
+            return "Le mot de passe doit contenir au moins 1 lettre minuscule.";
+        }
+        if (b.contains("invalidpasswordmindigitsmessage")) {
+            return "Le mot de passe doit contenir au moins 1 chiffre.";
+        }
+        if (b.contains("invalidpasswordminspecialcharsmessage")) {
+            return "Le mot de passe doit contenir au moins 1 caractère spécial.";
+        }
+        if (b.contains("invalid password") || b.contains("password policy")) {
+            return "Le mot de passe ne respecte pas les règles de sécurité.";
+        }
+        if (b.contains("invalid email") || b.contains("invalidemailmessage")) {
+            return "L'adresse email est invalide.";
+        }
+        if (status == 400) {
+            return "Données invalides. Vérifiez l'email, le téléphone et le mot de passe (8 caractères minimum).";
+        }
+        if (status == 401 || status == 403) {
+            return "Service d'authentification non disponible. Réessayez plus tard.";
+        }
+        return "Erreur lors de la création du compte. Réessayez.";
     }
 }

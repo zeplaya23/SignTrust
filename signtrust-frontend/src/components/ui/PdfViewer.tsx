@@ -12,9 +12,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface PdfViewerProps {
   url: string;
   className?: string;
+  toolbarRight?: React.ReactNode;
 }
 
-export default function PdfViewer({ url, className = '' }: PdfViewerProps) {
+export default function PdfViewer({ url, className = '', toolbarRight }: PdfViewerProps) {
   const [numPages, setNumPages] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
@@ -81,6 +82,7 @@ export default function PdfViewer({ url, className = '' }: PdfViewerProps) {
           >
             <ZoomIn size={16} />
           </button>
+          {toolbarRight && <div className="ml-3 pl-3 border-l border-border">{toolbarRight}</div>}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 package ci.cryptoneo.signtrust.app.resource;
 
+import ci.cryptoneo.signtrust.app.dto.ApiResponse;
 import ci.cryptoneo.signtrust.app.dto.SignatoryCreateRequest;
 import ci.cryptoneo.signtrust.app.entity.SignatoryEntity;
 import ci.cryptoneo.signtrust.app.service.DtoMapper;
@@ -58,5 +59,15 @@ public class SignatoryResource {
         String tenantId = identity.getTenantId();
         envelopeService.deleteSignatory(sigId, envelopeId, tenantId);
         return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/{sigId}/resend")
+    public Response resend(
+            @PathParam("envelopeId") Long envelopeId,
+            @PathParam("sigId") Long sigId) {
+        String tenantId = identity.getTenantId();
+        envelopeService.resendInvitation(envelopeId, sigId, tenantId);
+        return Response.ok(ApiResponse.ok("Invitation renvoyée")).build();
     }
 }

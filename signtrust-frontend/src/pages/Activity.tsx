@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ScrollText, Filter, ChevronLeft, ChevronRight,
   FileText, Send, PenTool, UserPlus, Trash2, XCircle,
-  Upload, Eye, RefreshCw, Loader2, AlertCircle,
+  Upload, Eye, RefreshCw, Loader2, AlertCircle, ShieldCheck, Mail, CheckCircle2,
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -22,6 +22,14 @@ const ACTION_LABELS: Record<string, { label: string; icon: typeof FileText; colo
   USER_INVITED: { label: 'Membre invite', icon: UserPlus, color: 'text-accent bg-accent-light' },
   USER_ROLE_CHANGED: { label: 'Role modifie', icon: UserPlus, color: 'text-warning bg-warning-light' },
   LOGIN: { label: 'Connexion', icon: Eye, color: 'text-txt-secondary bg-bg' },
+  DOCUMENT_SIGNED: { label: 'Signature apposée', icon: PenTool, color: 'text-success bg-success-light' },
+  DOCUMENT_REJECTED: { label: 'Signature refusée', icon: XCircle, color: 'text-danger bg-danger-light' },
+  DOCUMENT_ADDED: { label: 'Document ajouté', icon: Upload, color: 'text-primary bg-primary-light' },
+  ENVELOPE_DELETED: { label: 'Enveloppe supprimée', icon: Trash2, color: 'text-danger bg-danger-light' },
+  SIGNATURE_CONFIRMED: { label: 'Confirmation de signature envoyée', icon: CheckCircle2, color: 'text-success bg-success-light' },
+  OTP_SENT: { label: 'Code de vérification envoyé', icon: Mail, color: 'text-accent bg-accent-light' },
+  OTP_VERIFIED: { label: 'Identité vérifiée par code', icon: ShieldCheck, color: 'text-success bg-success-light' },
+  INVITATION_RESENT: { label: 'Invitation renvoyée', icon: RefreshCw, color: 'text-accent bg-accent-light' },
 };
 
 function getActionInfo(action: string) {
@@ -38,7 +46,7 @@ function timeAgo(iso: string): string {
   const days = Math.floor(hours / 24);
   if (days === 1) return 'Hier';
   if (days < 7) return `Il y a ${days}j`;
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function Activity() {

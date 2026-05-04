@@ -1,5 +1,6 @@
 package ci.cryptoneo.signtrust.iam;
 
+import ci.cryptoneo.signtrust.tenant.TenantContext;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -34,6 +35,10 @@ public class SignTrustIdentity {
     }
 
     public String getTenantId() {
+        // 0. Check TenantContext first (set by ApiKeyAuthFilter for API key requests)
+        String ctxTenant = TenantContext.get();
+        if (ctxTenant != null) return ctxTenant;
+
         if (securityIdentity.isAnonymous()) return "default";
 
         // 1. Check JWT claim first (for per-tenant realm tokens)

@@ -49,7 +49,7 @@ public class TeamResource {
         String realmName = "signtrust";
         String tenantId = identity.getTenantId();
         String userId = identity.getUserId();
-        System.out.println("[TEAM] list called — tenantId=" + tenantId + ", userId=" + userId);
+        LOG.debugf("list called — tenantId=%s, userId=%s", tenantId, userId);
         try {
             // Only list users belonging to the same tenant
             List<UserProfileEntity> tenantUsers = em.createQuery(
@@ -60,10 +60,9 @@ public class TeamResource {
             Set<String> tenantKeycloakIds = tenantUsers.stream()
                     .map(UserProfileEntity::getKeycloakId)
                     .collect(Collectors.toSet());
-            System.out.println("[TEAM] tenantUsers=" + tenantUsers.size() + ", keycloakIds=" + tenantKeycloakIds);
+            LOG.debugf("tenantUsers=%d, keycloakIds=%s", tenantUsers.size(), tenantKeycloakIds);
 
             List<UserRepresentation> allUsers = keycloak.realm(realmName).users().list(0, 500);
-            System.out.println("[TEAM] allKeycloakUsers=" + allUsers.size());
             List<TeamMemberDto> members = allUsers.stream()
                     .filter(u -> tenantKeycloakIds.contains(u.getId()))
                     .map(u -> {

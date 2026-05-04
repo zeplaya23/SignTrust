@@ -7,6 +7,19 @@ import Button from '../../components/ui/Button';
 import { toast } from '../../components/ui/Toast';
 import type { MobileOperator, PaymentMethod } from '../../types/subscription';
 
+const METHODS: { id: PaymentMethod; label: string; subtitle: string; icon: string }[] = [
+  { id: 'mobile_money', label: 'Mobile Money', subtitle: 'Orange · MTN · Moov · Wave', icon: '📱' },
+  { id: 'card', label: 'Carte bancaire', subtitle: 'Visa · Mastercard', icon: '💳' },
+  { id: 'virement', label: 'Virement bancaire', subtitle: 'Sous 24-48h', icon: '🏦' },
+];
+
+const OPERATORS: { id: MobileOperator; label: string; color: string }[] = [
+  { id: 'orange', label: 'Orange Money', color: '#FF7900' },
+  { id: 'mtn', label: 'MTN MoMo', color: '#FFCC00' },
+  { id: 'moov', label: 'Moov Money', color: '#1A6BB5' },
+  { id: 'wave', label: 'Wave', color: '#1DCFFF' },
+];
+
 export default function Payment() {
   const nav = useNavigate();
   const loc = useLocation() as { state?: { planId?: string } };
@@ -37,71 +50,97 @@ export default function Payment() {
     } finally { setLoading(false); }
   };
 
-  const operators: { id: MobileOperator; label: string; icon: string }[] = [
-    { id: 'orange', label: 'Orange Money', icon: '🟠' },
-    { id: 'mtn', label: 'MTN MoMo', icon: '🟡' },
-    { id: 'moov', label: 'Moov Money', icon: '🔵' },
-    { id: 'wave', label: 'Wave', icon: '💧' },
-  ];
-
   return (
-    <div className="flex flex-col pb-32">
+    <div className="mobile-shell flex flex-col bg-white min-h-[100dvh] pb-28">
       <TopBar title="Paiement" back />
-      <div className="px-5 pt-4">
-        <div className="bg-primary text-white rounded-2xl p-5">
-          <p className="text-sm text-white/70">Plan {plan.name}</p>
-          <p className="text-3xl font-bold mt-1">{plan.price.toLocaleString('fr-FR')} <span className="text-base font-normal">FCFA / mois</span></p>
-        </div>
 
-        <h2 className="text-base font-semibold text-ink mt-6 mb-2">Méthode de paiement</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {([
-            ['mobile_money', 'Mobile Money'],
-            ['card', 'Carte'],
-            ['virement', 'Virement'],
-          ] as [PaymentMethod, string][]).map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setMethod(id)}
-              className={`h-14 rounded-xl border text-xs font-medium ${
-                method === id ? 'bg-primary-light border-primary text-primary' : 'bg-white border-line text-muted'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Récapitulatif */}
+      <section className="px-5 pt-3">
+        <div className="bg-ink rounded-2xl p-5 text-white relative overflow-hidden">
+          <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider bg-white/15 px-2 py-0.5 rounded-full">Plan {plan.name}</span>
+          <p className="text-[11px] text-white/60 uppercase tracking-wider font-semibold">À payer</p>
+          <p className="text-3xl font-bold mt-1 tracking-tight">
+            {plan.price.toLocaleString('fr-FR')}
+            <span className="text-base font-medium text-white/70 ml-1">FCFA</span>
+          </p>
+          <p className="text-[12px] text-white/60 mt-1">Renouvellement mensuel · Annulable à tout moment</p>
         </div>
+      </section>
 
-        {method === 'mobile_money' && (
-          <>
-            <h3 className="text-base font-semibold text-ink mt-6 mb-2">Opérateur</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {operators.map((op) => (
+      {/* Méthode de paiement */}
+      <section className="px-5 mt-6">
+        <p className="text-[11px] font-bold text-muted uppercase tracking-[0.12em] mb-2.5">Méthode de paiement</p>
+        <div className="flex flex-col gap-2">
+          {METHODS.map((m) => {
+            const active = method === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMethod(m.id)}
+                className={`text-left bg-white rounded-2xl p-3.5 border-2 flex items-center gap-3 transition-colors ${
+                  active ? 'border-primary shadow-sm shadow-primary/15' : 'border-line'
+                }`}
+              >
+                <span className="w-10 h-10 rounded-xl bg-canvas inline-flex items-center justify-center text-xl shrink-0">{m.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-ink text-[15px]">{m.label}</p>
+                  <p className="text-[12px] text-muted">{m.subtitle}</p>
+                </div>
+                <span className={`w-5 h-5 rounded-full border-2 ${active ? 'border-primary bg-primary' : 'border-line'} inline-flex items-center justify-center shrink-0`}>
+                  {active && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                      <path d="M5 12l5 5 9-9" />
+                    </svg>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Opérateurs Mobile Money */}
+      {method === 'mobile_money' && (
+        <section className="px-5 mt-6">
+          <p className="text-[11px] font-bold text-muted uppercase tracking-[0.12em] mb-2.5">Opérateur</p>
+          <div className="grid grid-cols-2 gap-2">
+            {OPERATORS.map((op) => {
+              const active = operator === op.id;
+              return (
                 <button
                   key={op.id}
                   onClick={() => setOperator(op.id)}
-                  className={`h-14 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 ${
-                    operator === op.id ? 'bg-primary-light border-primary text-primary' : 'bg-white border-line text-muted'
+                  className={`bg-white rounded-2xl p-3 text-center border-2 transition-colors ${
+                    active ? 'border-primary shadow-sm shadow-primary/15' : 'border-line'
                   }`}
                 >
-                  <span>{op.icon}</span> {op.label}
+                  <span
+                    className="inline-block w-7 h-7 rounded-full mb-1.5"
+                    style={{ backgroundColor: op.color }}
+                    aria-hidden
+                  />
+                  <p className="text-[13px] font-bold text-ink">{op.label}</p>
                 </button>
-              ))}
-            </div>
-          </>
-        )}
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-        {method === 'virement' && (
-          <p className="text-sm text-muted mt-4 bg-white p-4 rounded-2xl border border-line-soft">
-            Vous recevrez un email avec les coordonnées bancaires pour effectuer le virement.
-          </p>
-        )}
-      </div>
+      {method === 'virement' && (
+        <section className="px-5 mt-6">
+          <div className="bg-warning-light border border-warning/30 rounded-2xl p-4 text-[13px] text-ink-soft">
+            Vous recevrez par email les coordonnées bancaires pour effectuer votre virement.
+          </div>
+        </section>
+      )}
 
-      <div className="fixed left-0 right-0 bottom-0 bg-white border-t border-line-soft px-5 py-3 safe-bottom">
-        <div className="mobile-shell px-0">
-          <Button size="lg" fullWidth onClick={pay} loading={loading}>Payer maintenant</Button>
-        </div>
+      {/* Sticky CTA */}
+      <div className="sticky bottom-0 mt-auto bg-white border-t border-line-soft px-5 pt-3 pb-3 safe-bottom">
+        <Button size="lg" fullWidth onClick={pay} loading={loading}>
+          Payer {plan.price.toLocaleString('fr-FR')} F
+        </Button>
+        <p className="text-center text-[11px] text-faint mt-2">🔒 Paiement sécurisé · Cryptoneo</p>
       </div>
     </div>
   );

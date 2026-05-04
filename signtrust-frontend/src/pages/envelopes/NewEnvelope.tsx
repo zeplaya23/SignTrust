@@ -136,6 +136,7 @@ export default function NewEnvelope() {
     contactService.getAll().then(setContacts).catch(() => {});
   }, []);
 
+
   // Close search dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -410,7 +411,7 @@ export default function NewEnvelope() {
     const yPct = ((e.clientY - rect.top) / rect.height) * 100;
 
     const defaults: Record<FieldType, { w: number; h: number }> = {
-      SIGNATURE: { w: 25, h: 8 },
+      SIGNATURE: { w: 25, h: 10 },
       DATE: { w: 20, h: 5 },
       INITIALS: { w: 10, h: 5 },
       TEXT: { w: 25, h: 5 },
@@ -1439,13 +1440,22 @@ export default function NewEnvelope() {
                             onMouseDown={(e) => !activeTool && handleFieldMouseDown(e, field.id)}
                             onClick={(e) => { e.stopPropagation(); setSelectedFieldId(field.id); }}
                           >
-                            <span className="pointer-events-none truncate px-1">
-                              {field.type === 'SIGNATURE' && 'Signature'}
-                              {field.type === 'DATE' && 'Date'}
-                              {field.type === 'INITIALS' && 'Initiales'}
-                              {field.type === 'TEXT' && 'Texte'}
+                            <div className="pointer-events-none w-full h-full flex flex-col items-center justify-center px-1 overflow-hidden">
+                              {field.type === 'SIGNATURE' && (
+                                <>
+                                  <span className="flex items-center gap-1 text-sm font-bold"><PenTool size={14} /> Signature</span>
+                                  {sigIdx >= 0 && (
+                                    <span className="text-xs font-semibold truncate max-w-full mt-0.5">
+                                      {signatories[sigIdx].firstName} {signatories[sigIdx].lastName}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                              {field.type === 'DATE' && <span className="truncate">Date</span>}
+                              {field.type === 'INITIALS' && <span className="truncate">Initiales</span>}
+                              {field.type === 'TEXT' && <span className="truncate">Texte</span>}
                               {field.type === 'CHECKBOX' && <CheckSquare size={14} />}
-                            </span>
+                            </div>
 
                             {/* Delete button */}
                             {isSelected && (

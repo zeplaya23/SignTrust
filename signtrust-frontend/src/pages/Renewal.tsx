@@ -15,10 +15,12 @@ export default function Renewal() {
   const logout = useAuthStore((s) => s.logout);
 
   const expirationDate = subscription.endDate
-    ? new Date(subscription.endDate).toLocaleDateString('fr-FR', {
+    ? new Date(subscription.endDate).toLocaleString('fr-FR', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       })
     : '—';
 
