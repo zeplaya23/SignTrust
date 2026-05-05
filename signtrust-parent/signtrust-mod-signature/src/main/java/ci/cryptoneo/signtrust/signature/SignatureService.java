@@ -2,32 +2,23 @@ package ci.cryptoneo.signtrust.signature;
 
 public interface SignatureService {
     /**
-     * Sign a PDF document.
+     * Sign a PDF document with a visible signature field.
      *
-     * @param pdfContent  PDF bytes to sign
-     * @param signerName  Full name of the signer (e.g. "Alice Dupont")
-     * @param signerEmail Email of the signer
-     * @param location    Signing location / app name
-     * @return signed PDF bytes
-     */
-    byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location);
-
-    /**
-     * Stamp a visual signature image on a PDF at the given field position.
-     *
-     * @param pdfContent     original PDF bytes
-     * @param signatureImage PNG image bytes of the signature
-     * @param pageNumber     1-based page number
+     * @param pdfContent     PDF bytes to sign
+     * @param signerName     Full name of the signer
+     * @param signerEmail    Email of the signer
+     * @param location       Signing location / app name
+     * @param signatureImage PNG image bytes of the drawn signature (may be null)
+     * @param pageNumber     1-based page number for the signature field
      * @param xPct           X position as percentage of page width (0-100)
      * @param yPct           Y position as percentage of page height (0-100)
-     * @param widthPct       width as percentage of page width (0-100)
-     * @param heightPct      height as percentage of page height (0-100)
-     * @param signerName     name of the signer (for text label below signature)
-     * @return modified PDF bytes with the signature image stamped
+     * @param widthPct       Width as percentage of page width (0-100)
+     * @param heightPct      Height as percentage of page height (0-100)
+     * @return signed PDF bytes
      */
-    byte[] stampSignatureImage(byte[] pdfContent, byte[] signatureImage,
-                               int pageNumber, double xPct, double yPct,
-                               double widthPct, double heightPct, String signerName);
+    byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location,
+                   byte[] signatureImage, int pageNumber, double xPct, double yPct,
+                   double widthPct, double heightPct);
 
     boolean validateSignature(byte[] signedPdf);
 }

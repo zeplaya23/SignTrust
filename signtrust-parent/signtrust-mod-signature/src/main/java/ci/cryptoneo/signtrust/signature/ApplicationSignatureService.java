@@ -2,15 +2,26 @@ package ci.cryptoneo.signtrust.signature;
 
 import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.cos.COSArray;
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDResources;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureInterface;
+import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URI;
@@ -28,16 +39,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Real signature implementation using the Augura Signing Service Remote API.
+ * Real PAdES signature implementation using Augura Signing Service Remote API.
+ *
+ * The signature image is placed as the visual appearance of a real PDF signature field,
+ * and the cryptographic CMS/PKCS#7 signature is embedded in that same field.
  *
  * Flow:
- * 1. Visual stamp is applied locally via PDFBox (correct field position)
- * 2. PDFBox creates a PAdES signature container (byte range)
- * 3. SHA-256 hash of the byte range is sent to /api/remote/sign
- * 4. CMS/PKCS#7 signature is returned and embedded in the PDF
- * 5. PDF is extended to PAdES_BASELINE_LT via /api/remote/extend
- *
- * This avoids the signing service adding its own visual signature.
+ * 1. POST /api/remote/prepare → session_id
+ * 2. Create PDSignature field at specified position with signature image as appearance
+ * 3. PDFBox computes byte range; SHA-256 hash sent to POST /api/remote/sign → CMS
+ * 4. CMS embedded in the signature field
+ * 5. POST /api/remote/extend → PAdES_BASELINE_LT
  */
 @ApplicationScoped
 @IfBuildProperty(name = "signtrust.signing.mode", stringValue = "augura")
@@ -60,9 +72,6 @@ public class ApplicationSignatureService implements SignatureService {
     @ConfigProperty(name = "signtrust.signing.country", defaultValue = "CI")
     String signingCountry;
 
-    @Inject
-    VisualStampService visualStampService;
-
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -73,11 +82,13 @@ public class ApplicationSignatureService implements SignatureService {
     private volatile Instant tokenExpiry = Instant.EPOCH;
 
     @Override
-    public byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location) {
+    public byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location,
+                          byte[] signatureImage, int pageNumber, double xPct, double yPct,
+                          double widthPct, double heightPct) {
         try {
             String token = getAccessToken();
 
-            // Phase 1: Prepare — get certificate chain and session ID
+            // Phase 1: Prepare — get session ID from signing service
             ObjectNode prepareBody = mapper.createObjectNode();
             prepareBody.put("signer_name", signerName);
             prepareBody.put("signer_organization", signingOrganization);
@@ -89,11 +100,18 @@ public class ApplicationSignatureService implements SignatureService {
 
             LOG.infof("Remote signing session prepared: session_id=%s, signer_dn=%s", sessionId, signerDn);
 
-            // Phase 2: Create PAdES signature container with PDFBox and compute hash
-            // PDFBox will set up the byte range; we sign externally
+            // Phase 2: Create PDF signature field with visual appearance + sign
             ByteArrayOutputStream signedOutput = new ByteArrayOutputStream();
 
             try (PDDocument doc = Loader.loadPDF(pdfContent)) {
+                // Get or create AcroForm
+                PDAcroForm acroForm = doc.getDocumentCatalog().getAcroForm();
+                if (acroForm == null) {
+                    acroForm = new PDAcroForm(doc);
+                    doc.getDocumentCatalog().setAcroForm(acroForm);
+                }
+
+                // Create PDSignature
                 PDSignature signature = new PDSignature();
                 signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
                 signature.setSubFilter(PDSignature.SUBFILTER_ETSI_CADES_DETACHED);
@@ -102,7 +120,58 @@ public class ApplicationSignatureService implements SignatureService {
                 signature.setLocation(location);
                 signature.setSignDate(Calendar.getInstance());
 
-                // Use remote signing as the SignatureInterface
+                // Resolve page
+                int pageIdx = Math.max(0, Math.min(pageNumber - 1, doc.getNumberOfPages() - 1));
+                PDPage page = doc.getPage(pageIdx);
+                PDRectangle mediaBox = page.getMediaBox();
+                float pageWidth = mediaBox.getWidth();
+                float pageHeight = mediaBox.getHeight();
+
+                // Convert percentage coordinates to PDF points
+                float x = (float) (xPct / 100.0 * pageWidth);
+                float w = (float) (widthPct / 100.0 * pageWidth);
+                float h = (float) (heightPct / 100.0 * pageHeight);
+                float y = pageHeight - (float) (yPct / 100.0 * pageHeight) - h;
+
+                PDRectangle fieldRect = new PDRectangle(x, y, w, h);
+
+                // Create signature field with widget annotation
+                PDSignatureField signatureField = new PDSignatureField(acroForm);
+                signatureField.setPartialName("Sig_" + signerName.replaceAll("\\s+", "_"));
+                signatureField.setValue(signature);
+
+                PDAnnotationWidget widget = signatureField.getWidgets().get(0);
+                widget.setRectangle(fieldRect);
+                widget.setPage(page);
+
+                // Set visual appearance using the signature image
+                if (signatureImage != null && signatureImage.length > 0) {
+                    PDImageXObject image = PDImageXObject.createFromByteArray(doc, signatureImage, "signature.png");
+
+                    PDAppearanceStream appearanceStream = new PDAppearanceStream(doc);
+                    appearanceStream.setBBox(new PDRectangle(w, h));
+                    PDResources resources = new PDResources();
+                    COSName imgName = resources.add(image);
+                    appearanceStream.setResources(resources);
+
+                    // Write content stream: draw the image
+                    String streamContent = String.format("q %.2f 0 0 %.2f 0 0 cm /%s Do Q", w, h, imgName.getName());
+                    try (var os = appearanceStream.getCOSObject().createOutputStream()) {
+                        os.write(streamContent.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                    }
+
+                    PDAppearanceDictionary appearance = new PDAppearanceDictionary();
+                    appearance.setNormalAppearance(appearanceStream);
+                    widget.setAppearance(appearance);
+                }
+
+                // Add widget to page annotations
+                page.getAnnotations().add(widget);
+
+                // Add field to AcroForm
+                acroForm.getFields().add(signatureField);
+
+                // Register signature with PDFBox and sign
                 RemoteSignatureInterface remoteSign = new RemoteSignatureInterface(sessionId, token);
                 doc.addSignature(signature, remoteSign);
                 doc.saveIncremental(signedOutput);
@@ -110,23 +179,17 @@ public class ApplicationSignatureService implements SignatureService {
 
             byte[] signedPdf = signedOutput.toByteArray();
 
-            // Phase 3: Extend to PAdES_BASELINE_LT (add validation data)
+            // Phase 3: Extend to PAdES_BASELINE_LT
             signedPdf = extendToLT(signedPdf, token);
 
-            LOG.infof("PDF signed successfully via remote signing (session=%s, signer=%s)", sessionId, signerName);
+            LOG.infof("PDF signed with visible field at page %d (%.1f%%, %.1f%%) for %s",
+                    pageNumber, xPct, yPct, signerName);
             return signedPdf;
 
         } catch (Exception e) {
             LOG.errorf(e, "Failed to sign PDF via remote signing");
             throw new RuntimeException("Digital signature failed: " + e.getMessage(), e);
         }
-    }
-
-    @Override
-    public byte[] stampSignatureImage(byte[] pdfContent, byte[] signatureImage,
-                                       int pageNumber, double xPct, double yPct,
-                                       double widthPct, double heightPct, String signerName) {
-        return visualStampService.stamp(pdfContent, signatureImage, pageNumber, xPct, yPct, widthPct, heightPct, signerName);
     }
 
     @Override
@@ -150,9 +213,6 @@ public class ApplicationSignatureService implements SignatureService {
 
     // --- Remote signing interface for PDFBox ---
 
-    /**
-     * PDFBox SignatureInterface that sends the hash to the remote signing service.
-     */
     private class RemoteSignatureInterface implements SignatureInterface {
         private final String sessionId;
         private final String token;
@@ -165,7 +225,6 @@ public class ApplicationSignatureService implements SignatureService {
         @Override
         public byte[] sign(InputStream content) throws java.io.IOException {
             try {
-                // Compute SHA-256 hash of the byte range content
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 byte[] buffer = new byte[8192];
                 int bytesRead;
@@ -177,7 +236,6 @@ public class ApplicationSignatureService implements SignatureService {
 
                 LOG.debugf("Computed SHA-256 hash for remote signing: %s", hashBase64);
 
-                // Call /api/remote/sign with the hash
                 ObjectNode signBody = mapper.createObjectNode();
                 signBody.put("session_id", sessionId);
                 signBody.put("hash", hashBase64);
@@ -185,9 +243,8 @@ public class ApplicationSignatureService implements SignatureService {
                 JsonNode signResp = postJson(token, "/api/remote/sign", signBody);
                 String cmsBase64 = signResp.get("cms_signature").asText();
 
-                LOG.infof("Remote sign successful: certificate_serial=%s, signing_date=%s",
-                        signResp.has("certificate_serial") ? signResp.get("certificate_serial").asText() : "N/A",
-                        signResp.has("signing_date") ? signResp.get("signing_date").asText() : "N/A");
+                LOG.infof("Remote sign successful: certificate_serial=%s",
+                        signResp.has("certificate_serial") ? signResp.get("certificate_serial").asText() : "N/A");
 
                 return Base64.getDecoder().decode(cmsBase64);
 
@@ -199,9 +256,6 @@ public class ApplicationSignatureService implements SignatureService {
 
     // --- Extend to LT ---
 
-    /**
-     * Extends the signed PDF to PAdES_BASELINE_LT by adding validation data (OCSP, CRL).
-     */
     private byte[] extendToLT(byte[] signedPdf, String token) {
         try {
             String pdfBase64 = Base64.getEncoder().encodeToString(signedPdf);
@@ -241,7 +295,6 @@ public class ApplicationSignatureService implements SignatureService {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() == 401) {
-            // Token expired, retry once
             accessToken = null;
             String newToken = getAccessToken();
             request = HttpRequest.newBuilder()

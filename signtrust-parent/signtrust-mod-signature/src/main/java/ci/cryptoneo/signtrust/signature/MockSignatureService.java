@@ -11,8 +11,7 @@ import java.time.format.DateTimeFormatter;
 /**
  * Mock implementation of SignatureService.
  * Activated when signtrust.signing.mode=mock (default for dev).
- * Simulates digital signing by logging metadata and stamps
- * the visual signature image on the PDF using PDFBox.
+ * Stamps the visual signature image on the PDF but does not apply real crypto.
  */
 @ApplicationScoped
 @IfBuildProperty(name = "signtrust.signing.mode", stringValue = "mock", enableIfMissing = true)
@@ -24,19 +23,21 @@ public class MockSignatureService implements SignatureService {
     VisualStampService visualStampService;
 
     @Override
-    public byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location) {
+    public byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location,
+                          byte[] signatureImage, int pageNumber, double xPct, double yPct,
+                          double widthPct, double heightPct) {
         LOG.infof("Mock signing PDF (%d bytes) for name=%s, email=%s, location=%s",
                 pdfContent.length, signerName, signerEmail, location);
+
+        // In mock mode, just stamp the visual image (no real crypto)
+        if (signatureImage != null && signatureImage.length > 0) {
+            pdfContent = visualStampService.stamp(pdfContent, signatureImage,
+                    pageNumber, xPct, yPct, widthPct, heightPct, signerName);
+        }
+
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         LOG.infof("Mock signature: Signed by %s (%s) at %s", signerName, signerEmail, timestamp);
         return pdfContent;
-    }
-
-    @Override
-    public byte[] stampSignatureImage(byte[] pdfContent, byte[] signatureImage,
-                                       int pageNumber, double xPct, double yPct,
-                                       double widthPct, double heightPct, String signerName) {
-        return visualStampService.stamp(pdfContent, signatureImage, pageNumber, xPct, yPct, widthPct, heightPct, signerName);
     }
 
     @Override

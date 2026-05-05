@@ -452,30 +452,33 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
         String signerFullName = sig.getFirstName() + " " + sig.getLastName();
 
-        // Sign each document and stamp signature at field positions
+        // Sign each document — signature field is created at the correct position with visual appearance
         for (DocumentEntity doc : envelope.getDocuments()) {
             byte[] content = storageService.download(envelope.getTenantId(), doc.getStorageKey());
             if (content == null) continue;
 
-            // Stamp visual signature at each SIGNATURE field for this signatory on this document
-            if (signatureImageBytes != null && doc.getFields() != null) {
+            // Find the first SIGNATURE field for this signatory on this document
+            int pageNumber = 1;
+            double xPct = 10, yPct = 80, widthPct = 25, heightPct = 8;
+
+            if (doc.getFields() != null) {
                 for (SignatureFieldEntity field : doc.getFields()) {
                     if (field.getSignatory() != null && field.getSignatory().getId().equals(sig.getId())
                             && "SIGNATURE".equals(field.getType())) {
-                        content = signatureService.stampSignatureImage(content, signatureImageBytes,
-                                field.getPageNumber() != null ? field.getPageNumber() : 1,
-                                field.getX() != null ? field.getX() : 0,
-                                field.getY() != null ? field.getY() : 0,
-                                field.getWidth() != null ? field.getWidth() : 25,
-                                field.getHeight() != null ? field.getHeight() : 8,
-                                signerFullName);
+                        pageNumber = field.getPageNumber() != null ? field.getPageNumber() : 1;
+                        xPct = field.getX() != null ? field.getX() : 10;
+                        yPct = field.getY() != null ? field.getY() : 80;
+                        widthPct = field.getWidth() != null ? field.getWidth() : 25;
+                        heightPct = field.getHeight() != null ? field.getHeight() : 8;
+                        break;
                     }
                 }
             }
 
-            // Apply digital signature (mock or real PAdES via Augura)
+            // Sign PDF with visible signature field (image + crypto in same field)
             byte[] signed = signatureService.signPdf(content, signerFullName,
-                    sig.getEmail(), "DigiSign Parapheur");
+                    sig.getEmail(), "DigiSign Parapheur",
+                    signatureImageBytes, pageNumber, xPct, yPct, widthPct, heightPct);
             storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
         }
 
