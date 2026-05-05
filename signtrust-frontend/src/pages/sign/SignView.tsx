@@ -40,7 +40,7 @@ interface SigningInfo {
   fields: SignatureField[];
 }
 
-type SignTab = 'draw' | 'text';
+type SignMode = 'draw' | 'text';
 
 async function fetchSignDocumentBlobUrl(token: string, docId: number): Promise<string> {
   const { data } = await axios.get(`${ENV.API_BASE_URL}/sign/${token}/documents/${docId}`, {
@@ -53,7 +53,7 @@ export default function SignView() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [activeDoc, setActiveDoc] = useState(0);
-  const [activeTab, setActiveTab] = useState<SignTab>('draw');
+  const [signMode, setSignMode] = useState<SignMode>('draw');
   const [signedDocs, setSignedDocs] = useState<Set<number>>(new Set());
   const [info, setInfo] = useState<SigningInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,11 +67,12 @@ export default function SignView() {
   const [scale, setScale] = useState(1.0);
   const pageContainerRef = useRef<HTMLDivElement>(null);
 
-  // Signature state
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Field drawing state
+  const [activeFieldId, setActiveFieldId] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasDrawn, setHasDrawn] = useState(false);
+  const [fieldSignatures, setFieldSignatures] = useState<Record<number, string>>({}); // fieldId → base64
   const [textSignature, setTextSignature] = useState('');
+  const fieldCanvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({});
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
@@ -84,7 +85,6 @@ export default function SignView() {
 
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
-  const [previewBase64, setPreviewBase64] = useState<string | null>(null);
 
   // Fetch signing info
   const fetchInfo = useCallback(async (t: string, signal: AbortSignal) => {
@@ -145,106 +145,143 @@ export default function SignView() {
     };
   }, [token, info, activeDoc, fetchBlob]);
 
-  // Initialize canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  // Initialize canvas when a field becomes active for drawing
+  const initFieldCanvas = useCallback((fieldId: number) => {
+    const canvas = fieldCanvasRefs.current[fieldId];
     if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    canvas.width = canvas.offsetWidth * 2;
-    canvas.height = canvas.offsetHeight * 2;
-    ctx.scale(2, 2);
+    ctx.scale(dpr, dpr);
     ctx.strokeStyle = '#1E3A5F';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-  }, [activeTab]);
+  }, []);
 
-  // Drawing handlers
-  const getCanvasPoint = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
+  useEffect(() => {
+    if (activeFieldId !== null && signMode === 'draw') {
+      // Small delay to let the canvas render
+      const timer = setTimeout(() => initFieldCanvas(activeFieldId), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeFieldId, signMode, initFieldCanvas]);
+
+  // Drawing handlers for field canvas
+  const getFieldCanvasPoint = (fieldId: number, e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = fieldCanvasRefs.current[fieldId];
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     if ('touches' in e) {
       const touch = e.touches[0];
       return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
     }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const point = getCanvasPoint(e);
+  const startFieldDrawing = (fieldId: number, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const point = getFieldCanvasPoint(fieldId, e);
     if (!point) return;
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = fieldCanvasRefs.current[fieldId]?.getContext('2d');
     if (!ctx) return;
     ctx.beginPath();
     ctx.moveTo(point.x, point.y);
     setIsDrawing(true);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const fieldDraw = (fieldId: number, e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return;
-    const point = getCanvasPoint(e);
+    const point = getFieldCanvasPoint(fieldId, e);
     if (!point) return;
-    const ctx = canvasRef.current?.getContext('2d');
+    const ctx = fieldCanvasRefs.current[fieldId]?.getContext('2d');
     if (!ctx) return;
     ctx.lineTo(point.x, point.y);
     ctx.stroke();
-    setHasDrawn(true);
   };
 
-  const stopDrawing = () => {
+  const stopFieldDrawing = (fieldId: number) => {
+    if (!isDrawing) return;
     setIsDrawing(false);
+    // Save the canvas content as base64
+    const canvas = fieldCanvasRefs.current[fieldId];
+    if (canvas) {
+      const data = canvas.toDataURL('image/png');
+      setFieldSignatures((prev) => ({ ...prev, [fieldId]: data }));
+    }
   };
 
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
+  const clearFieldCanvas = (fieldId: number) => {
+    const canvas = fieldCanvasRefs.current[fieldId];
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasDrawn(false);
+    setFieldSignatures((prev) => {
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
   };
 
+  // Apply text signature to a field
+  const applyTextToField = (fieldId: number) => {
+    if (!textSignature.trim()) return;
+    const canvas = document.createElement('canvas');
+    // Use field's actual rendered dimensions for proper aspect ratio
+    const fieldEl = document.querySelector(`[data-field-id="${fieldId}"]`) as HTMLElement;
+    const w = fieldEl?.offsetWidth || 300;
+    const h = fieldEl?.offsetHeight || 100;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    // Transparent background
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#1E3A5F';
+    // Auto-size font to fit
+    const fontSize = Math.min(h * 0.5, w / textSignature.trim().length * 1.5);
+    ctx.font = `italic ${fontSize}px Georgia, serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(textSignature.trim(), w / 2, h / 2);
+    const data = canvas.toDataURL('image/png');
+    setFieldSignatures((prev) => ({ ...prev, [fieldId]: data }));
+    setActiveFieldId(null);
+  };
+
+  // Get the first signature base64 for submission (backend applies to all fields)
   const getSignatureBase64 = (): string | null => {
-    if (activeTab === 'draw') {
-      if (!hasDrawn || !canvasRef.current) return null;
-      return canvasRef.current.toDataURL('image/png');
-    }
-    if (activeTab === 'text') {
-      if (!textSignature.trim()) return null;
-      const canvas = document.createElement('canvas');
-      canvas.width = 600;
-      canvas.height = 200;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, 600, 200);
-      ctx.fillStyle = '#1E3A5F';
-      ctx.font = 'italic 48px Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(textSignature.trim(), 300, 100);
-      return canvas.toDataURL('image/png');
-    }
-    return null;
+    const values = Object.values(fieldSignatures);
+    return values.length > 0 ? values[0] : null;
   };
 
-  const hasSignature = activeTab === 'draw' ? hasDrawn : textSignature.trim().length > 0;
+  const hasSignature = Object.keys(fieldSignatures).length > 0;
+
+  // Fields for current page and document
+  const currentDocId = info?.documents[activeDoc]?.id;
+  const currentPageFields = info?.fields.filter(
+    (f) => f.documentId === currentDocId && f.pageNumber === pageNumber
+  ) ?? [];
 
   const openPreview = () => {
-    const sig = getSignatureBase64();
-    if (!sig) return;
-    setPreviewBase64(sig);
+    if (!hasSignature) return;
     setShowPreview(true);
   };
 
   const handleSign = async () => {
-    if (!token || !previewBase64) return;
+    if (!token) return;
+    const sig = getSignatureBase64();
+    if (!sig) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await signService.sign(token, previewBase64);
+      await signService.sign(token, sig);
       navigate('/sign/success', {
         state: { documentCount: info?.documents.length ?? 0 },
         replace: true,
@@ -282,17 +319,6 @@ export default function SignView() {
       return next;
     });
   };
-
-  const tabs: { key: SignTab; label: string; icon: typeof PenTool }[] = [
-    { key: 'draw', label: 'Dessiner', icon: PenTool },
-    { key: 'text', label: 'Texte', icon: Type },
-  ];
-
-  // Fields for current page and document
-  const currentDocId = info?.documents[activeDoc]?.id;
-  const currentPageFields = info?.fields.filter(
-    (f) => f.documentId === currentDocId && f.pageNumber === pageNumber
-  ) ?? [];
 
   if (loading) {
     return (
@@ -337,7 +363,7 @@ export default function SignView() {
           </div>
         )}
 
-        <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 340px' }}>
+        <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 300px' }}>
           {/* Left: document area */}
           <div>
             {/* Document tabs */}
@@ -360,7 +386,7 @@ export default function SignView() {
               ))}
             </div>
 
-            {/* Document preview with signature fields */}
+            {/* Document preview with interactive signature fields */}
             <Card className="min-h-[600px] overflow-hidden">
               {pdfLoading ? (
                 <div className="flex items-center justify-center h-full min-h-[600px]">
@@ -408,7 +434,7 @@ export default function SignView() {
                     </div>
                   </div>
 
-                  {/* PDF page with field overlays */}
+                  {/* PDF page with interactive field overlays */}
                   <div className="flex-1 overflow-auto flex justify-center bg-bg/50 p-4">
                     <div ref={pageContainerRef} className="relative inline-block">
                       <Document
@@ -424,26 +450,132 @@ export default function SignView() {
                         />
                       </Document>
 
-                      {/* Signature field overlays — positioned on the PDF page */}
-                      {currentPageFields.map((field) => (
-                        <div
-                          key={field.id}
-                          className="absolute border-2 border-dashed border-primary rounded-lg flex items-center justify-center bg-primary/10 hover:bg-primary/20 transition-colors z-10 pointer-events-auto"
-                          style={{
-                            left: `${field.x}%`,
-                            top: `${field.y}%`,
-                            width: `${field.width}%`,
-                            height: `${field.height}%`,
-                          }}
-                        >
-                          <div className="flex flex-col items-center gap-0.5">
-                            <PenTool size={14} className="text-primary" />
-                            <span className="text-[10px] font-semibold text-primary leading-tight">
-                              Signez ici
-                            </span>
+                      {/* Signature field overlays */}
+                      {currentPageFields.map((field) => {
+                        const isSigned = !!fieldSignatures[field.id];
+                        const isActive = activeFieldId === field.id;
+
+                        return (
+                          <div
+                            key={field.id}
+                            data-field-id={field.id}
+                            className={clsx(
+                              'absolute rounded-lg z-10 overflow-hidden',
+                              isActive
+                                ? 'border-2 border-primary ring-2 ring-primary/30'
+                                : isSigned
+                                  ? 'border-2 border-success/50'
+                                  : 'border-2 border-dashed border-primary cursor-pointer hover:bg-primary/20 transition-colors',
+                            )}
+                            style={{
+                              left: `${field.x}%`,
+                              top: `${field.y}%`,
+                              width: `${field.width}%`,
+                              height: `${field.height}%`,
+                            }}
+                            onClick={() => {
+                              if (!isActive && !isSigned) {
+                                setActiveFieldId(field.id);
+                              }
+                            }}
+                          >
+                            {/* Not signed yet, not active: show placeholder */}
+                            {!isSigned && !isActive && (
+                              <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <PenTool size={14} className="text-primary" />
+                                  <span className="text-[10px] font-semibold text-primary leading-tight">
+                                    Cliquez pour signer
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Active: drawing canvas */}
+                            {isActive && signMode === 'draw' && (
+                              <canvas
+                                ref={(el) => { fieldCanvasRefs.current[field.id] = el; }}
+                                className="w-full h-full cursor-crosshair touch-none bg-white/80"
+                                onMouseDown={(e) => startFieldDrawing(field.id, e)}
+                                onMouseMove={(e) => fieldDraw(field.id, e)}
+                                onMouseUp={() => stopFieldDrawing(field.id)}
+                                onMouseLeave={() => stopFieldDrawing(field.id)}
+                                onTouchStart={(e) => startFieldDrawing(field.id, e)}
+                                onTouchMove={(e) => fieldDraw(field.id, e)}
+                                onTouchEnd={() => stopFieldDrawing(field.id)}
+                              />
+                            )}
+
+                            {/* Active: text mode */}
+                            {isActive && signMode === 'text' && (
+                              <div className="w-full h-full flex items-center justify-center bg-white/80 p-1">
+                                <span
+                                  className="text-center font-serif italic text-[#1E3A5F] leading-tight"
+                                  style={{ fontSize: `${Math.min(field.height * 0.4, 2)}vw` }}
+                                >
+                                  {textSignature || 'Tapez votre signature →'}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Signed: show the signature image */}
+                            {isSigned && !isActive && (
+                              <img
+                                src={fieldSignatures[field.id]}
+                                alt="Signature"
+                                className="w-full h-full object-contain bg-white/50"
+                              />
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
+
+                      {/* Mini toolbar near active field */}
+                      {activeFieldId !== null && currentPageFields.some((f) => f.id === activeFieldId) && (() => {
+                        const field = currentPageFields.find((f) => f.id === activeFieldId)!;
+                        return (
+                          <div
+                            className="absolute z-20 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-border px-2 py-1"
+                            style={{
+                              left: `${field.x}%`,
+                              top: `calc(${field.y}% + ${field.height}% + 4px)`,
+                            }}
+                          >
+                            {signMode === 'draw' ? (
+                              <>
+                                <button
+                                  onClick={() => clearFieldCanvas(activeFieldId)}
+                                  className="p-1.5 rounded hover:bg-bg text-txt-muted transition-colors"
+                                  title="Effacer"
+                                >
+                                  <Eraser size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (fieldSignatures[activeFieldId]) {
+                                      setActiveFieldId(null);
+                                    }
+                                  }}
+                                  disabled={!fieldSignatures[activeFieldId]}
+                                  className="px-2 py-1 rounded text-xs font-medium bg-success text-white hover:bg-success/90 disabled:opacity-40 transition-colors"
+                                >
+                                  <Check size={12} className="inline mr-1" />
+                                  OK
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => applyTextToField(activeFieldId)}
+                                disabled={!textSignature.trim()}
+                                className="px-2 py-1 rounded text-xs font-medium bg-success text-white hover:bg-success/90 disabled:opacity-40 transition-colors"
+                              >
+                                <Check size={12} className="inline mr-1" />
+                                Appliquer
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -465,71 +597,47 @@ export default function SignView() {
 
           {/* Right panel */}
           <div className="space-y-5">
-            {/* Signature tabs */}
+            {/* Signature mode selector */}
             <Card padding="md">
-              <div className="flex border-b border-border mb-4">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={clsx(
-                      'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
-                      activeTab === tab.key
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-txt-muted hover:text-txt-secondary'
-                    )}
-                  >
-                    <tab.icon size={14} />
-                    {tab.label}
-                  </button>
-                ))}
+              <h3 className="text-sm font-semibold text-dark mb-3">Mode de signature</h3>
+              <div className="flex border border-border rounded-xl overflow-hidden mb-3">
+                <button
+                  onClick={() => setSignMode('draw')}
+                  className={clsx(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                    signMode === 'draw' ? 'bg-primary text-white' : 'bg-white text-txt-muted hover:bg-bg'
+                  )}
+                >
+                  <PenTool size={14} />
+                  Dessiner
+                </button>
+                <button
+                  onClick={() => setSignMode('text')}
+                  className={clsx(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                    signMode === 'text' ? 'bg-primary text-white' : 'bg-white text-txt-muted hover:bg-bg'
+                  )}
+                >
+                  <Type size={14} />
+                  Texte
+                </button>
               </div>
 
-              {/* Signature area */}
-              {activeTab === 'draw' && (
-                <div className="mb-3">
-                  <canvas
-                    ref={canvasRef}
-                    className="w-full h-[200px] border-2 border-dashed border-border rounded-xl bg-bg cursor-crosshair touch-none"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={startDrawing}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
-                  />
-                  {!hasDrawn && (
-                    <p className="text-xs text-txt-muted text-center mt-1">
-                      Dessinez votre signature ci-dessus
-                    </p>
-                  )}
-                </div>
-              )}
-              {activeTab === 'text' && (
-                <div className="h-[200px] border-2 border-dashed border-border rounded-xl flex items-center justify-center bg-bg mb-3">
-                  <input
-                    type="text"
-                    value={textSignature}
-                    onChange={(e) => setTextSignature(e.target.value)}
-                    placeholder="Tapez votre signature..."
-                    className="text-center text-2xl font-serif italic text-dark bg-transparent focus:outline-none w-full px-4"
-                  />
-                </div>
+              {signMode === 'text' && (
+                <input
+                  type="text"
+                  value={textSignature}
+                  onChange={(e) => setTextSignature(e.target.value)}
+                  placeholder="Tapez votre signature..."
+                  className="w-full text-center text-lg font-serif italic text-dark bg-bg border border-border rounded-xl px-3 py-2 focus:outline-none focus:border-primary"
+                />
               )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Eraser}
-                className="w-full"
-                onClick={() => {
-                  if (activeTab === 'draw') clearCanvas();
-                  else setTextSignature('');
-                }}
-              >
-                Effacer
-              </Button>
+              <p className="text-xs text-txt-muted mt-3">
+                {signMode === 'draw'
+                  ? 'Cliquez sur un champ "Signez ici" sur le document puis dessinez votre signature.'
+                  : 'Tapez votre signature ci-dessus, puis cliquez sur un champ du document pour l\'appliquer.'}
+              </p>
             </Card>
 
             {/* Security info */}
@@ -644,18 +752,22 @@ export default function SignView() {
         </div>
       )}
 
-      {/* Signature preview modal */}
-      {showPreview && previewBase64 && (
+      {/* Signature confirmation modal */}
+      {showPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6">
-            <h2 className="text-lg font-bold text-dark mb-1">Aperçu de votre signature</h2>
+            <h2 className="text-lg font-bold text-dark mb-1">Confirmer la signature</h2>
             <p className="text-sm text-txt-secondary mb-4">
-              Vérifiez votre signature avant de confirmer.
+              Votre signature a été apposée sur le document.
             </p>
 
-            {/* Signature preview */}
+            {/* Show signature preview */}
             <div className="border-2 border-dashed border-border rounded-xl p-4 bg-bg mb-4 flex items-center justify-center">
-              <img src={previewBase64} alt="Aperçu signature" className="max-h-[150px] max-w-full object-contain" />
+              <img
+                src={Object.values(fieldSignatures)[0]}
+                alt="Aperçu signature"
+                className="max-h-[120px] max-w-full object-contain"
+              />
             </div>
 
             <div className="bg-primary/5 rounded-xl p-4 mb-4">
