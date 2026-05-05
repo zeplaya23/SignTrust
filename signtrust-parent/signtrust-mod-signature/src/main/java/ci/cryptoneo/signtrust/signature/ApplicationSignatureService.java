@@ -121,12 +121,12 @@ public class ApplicationSignatureService implements SignatureService {
                     options.setPage(pageIdx);
 
                     if (signatureImage != null && signatureImage.length > 0) {
-                        // Trim whitespace/transparency around the signature drawing
-                        byte[] trimmedImage = VisualStampService.trimImage(signatureImage);
+                        // Trim whitespace and fit to field aspect ratio (no distortion)
+                        byte[] fittedImage = VisualStampService.trimAndFitImage(signatureImage, wPts, hPts);
 
                         // PDFBox high-level API: builds AcroForm, widget, appearance stream automatically
                         PDVisibleSignDesigner visibleDesigner = new PDVisibleSignDesigner(
-                                doc, new ByteArrayInputStream(trimmedImage), pageNumber);
+                                doc, new ByteArrayInputStream(fittedImage), pageNumber);
                         visibleDesigner
                                 .xAxis(xPts)
                                 .yAxis(yPts)

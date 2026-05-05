@@ -31,8 +31,8 @@ public class MockSignatureService implements SignatureService {
 
         // In mock mode, just stamp the visual image (no real crypto)
         if (signatureImage != null && signatureImage.length > 0) {
-            byte[] trimmedImage = VisualStampService.trimImage(signatureImage);
-            pdfContent = visualStampService.stamp(pdfContent, trimmedImage,
+            byte[] fittedImage = VisualStampService.trimAndFitImage(signatureImage, widthPct, heightPct);
+            pdfContent = visualStampService.stamp(pdfContent, fittedImage,
                     pageNumber, xPct, yPct, widthPct, heightPct, signerName);
         }
 
