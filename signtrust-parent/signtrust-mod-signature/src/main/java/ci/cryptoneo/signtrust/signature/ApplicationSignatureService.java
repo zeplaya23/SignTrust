@@ -5,17 +5,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.PDResources;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
-import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureInterface;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
-import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
-import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.visible.PDVisibleSigProperties;
+import org.apache.pdfbox.pdmodel.interactive.digitalsignature.visible.PDVisibleSignDesigner;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -37,14 +31,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Real PAdES signature implementation using Augura Signing Service Remote API.
+ * Real PAdES signature using Augura Signing Service Remote API.
  *
- * The signature image is placed as the visual appearance of a real PDF signature field,
- * and the cryptographic CMS/PKCS#7 signature is embedded in that same field.
+ * Uses PDFBox's high-level PDVisibleSignDesigner/PDVisibleSigProperties API
+ * to create a proper visible signature field with the drawn signature image
+ * as appearance. The cryptographic CMS is obtained via remote signing (hash only).
  *
  * Flow:
  * 1. POST /api/remote/prepare → session_id
- * 2. Create PDSignature field at specified position with signature image as appearance
+ * 2. PDVisibleSignDesigner builds visible signature field at correct position
  * 3. PDFBox computes byte range; SHA-256 hash sent to POST /api/remote/sign → CMS
  * 4. CMS embedded in the signature field
  * 5. POST /api/remote/extend → PAdES_BASELINE_LT
@@ -98,11 +93,21 @@ public class ApplicationSignatureService implements SignatureService {
 
             LOG.infof("Remote signing session prepared: session_id=%s, signer_dn=%s", sessionId, signerDn);
 
-            // Phase 2: Create PDF with visible signature field + sign
+            // Phase 2: Create visible signature field + sign via remote hash
             ByteArrayOutputStream signedOutput = new ByteArrayOutputStream();
 
             try (PDDocument doc = Loader.loadPDF(pdfContent)) {
-                // Create PDSignature
+                int pageIdx = Math.max(0, Math.min(pageNumber - 1, doc.getNumberOfPages() - 1));
+                PDPage page = doc.getPage(pageIdx);
+                float pageWidth = page.getMediaBox().getWidth();
+                float pageHeight = page.getMediaBox().getHeight();
+
+                // Convert percentages to PDF points
+                float xPts = (float) (xPct / 100.0 * pageWidth);
+                float yPts = (float) (yPct / 100.0 * pageHeight);
+                float wPts = (float) (widthPct / 100.0 * pageWidth);
+                float hPts = (float) (heightPct / 100.0 * pageHeight);
+
                 PDSignature signature = new PDSignature();
                 signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
                 signature.setSubFilter(PDSignature.SUBFILTER_ETSI_CADES_DETACHED);
@@ -111,43 +116,47 @@ public class ApplicationSignatureService implements SignatureService {
                 signature.setLocation(location);
                 signature.setSignDate(Calendar.getInstance());
 
-                // Resolve page
-                int pageIdx = Math.max(0, Math.min(pageNumber - 1, doc.getNumberOfPages() - 1));
-                PDPage page = doc.getPage(pageIdx);
-                PDRectangle mediaBox = page.getMediaBox();
-                float pageWidth = mediaBox.getWidth();
-                float pageHeight = mediaBox.getHeight();
+                try (SignatureOptions options = new SignatureOptions()) {
+                    options.setPreferredSignatureSize(32768);
+                    options.setPage(pageIdx);
 
-                // Convert percentage coordinates to PDF points
-                float x = (float) (xPct / 100.0 * pageWidth);
-                float w = (float) (widthPct / 100.0 * pageWidth);
-                float h = (float) (heightPct / 100.0 * pageHeight);
-                float y = pageHeight - (float) (yPct / 100.0 * pageHeight) - h;
+                    if (signatureImage != null && signatureImage.length > 0) {
+                        // PDFBox high-level API: builds AcroForm, widget, appearance stream automatically
+                        PDVisibleSignDesigner visibleDesigner = new PDVisibleSignDesigner(
+                                doc, new ByteArrayInputStream(signatureImage), pageNumber);
+                        visibleDesigner
+                                .xAxis(xPts)
+                                .yAxis(yPts)
+                                .width(wPts)
+                                .height(hPts)
+                                .signatureFieldName("Sig_" + signerName.replaceAll("[^a-zA-Z0-9]", "_"));
 
-                // Create SignatureOptions with visual signature
-                SignatureOptions options = new SignatureOptions();
-                options.setPreferredSignatureSize(16384);
-                options.setPage(pageIdx);
+                        PDVisibleSigProperties visibleProps = new PDVisibleSigProperties();
+                        visibleProps
+                                .signerName(signerDn)
+                                .signerLocation(location)
+                                .signatureReason("Signed by " + signerName)
+                                .page(pageIdx)
+                                .visualSignEnabled(true)
+                                .setPdVisibleSignature(visibleDesigner);
+                        visibleProps.buildSignature();
 
-                if (signatureImage != null && signatureImage.length > 0) {
-                    // Build a visual signature PDF template with the image at the correct position
-                    byte[] visualPdf = createVisualSignaturePdf(mediaBox, signatureImage, x, y, w, h);
-                    options.setVisualSignature(new ByteArrayInputStream(visualPdf));
+                        options.setVisualSignature(visibleProps);
+                    }
+
+                    RemoteSignatureInterface remoteSign = new RemoteSignatureInterface(sessionId, token);
+                    doc.addSignature(signature, remoteSign, options);
+                    doc.saveIncremental(signedOutput);
                 }
-
-                // Register signature with visual options and sign
-                RemoteSignatureInterface remoteSign = new RemoteSignatureInterface(sessionId, token);
-                doc.addSignature(signature, remoteSign, options);
-                doc.saveIncremental(signedOutput);
             }
 
             byte[] signedPdf = signedOutput.toByteArray();
 
-            // Phase 3: Extend to PAdES_BASELINE_LT
+            // Phase 3: Extend to PAdES_BASELINE_LT (add validation data)
             signedPdf = extendToLT(signedPdf, token);
 
-            LOG.infof("PDF signed with visible field at page %d (%.1f%%, %.1f%%) for %s",
-                    pageNumber, xPct, yPct, signerName);
+            LOG.infof("PDF signed with visible field at page %d (%.1f%%, %.1f%%) size (%.1f%%x%.1f%%) for %s",
+                    pageNumber, xPct, yPct, widthPct, heightPct, signerName);
             return signedPdf;
 
         } catch (Exception e) {
@@ -215,59 +224,6 @@ public class ApplicationSignatureService implements SignatureService {
             } catch (Exception e) {
                 throw new java.io.IOException("Remote signing failed: " + e.getMessage(), e);
             }
-        }
-    }
-
-    // --- Visual signature PDF template ---
-
-    /**
-     * Creates a PDF template for the visual signature, containing an AcroForm with a signature field
-     * and a widget annotation with the signature image as its appearance stream.
-     * This is what PDFBox's SignatureOptions.setVisualSignature() expects.
-     */
-    private byte[] createVisualSignaturePdf(PDRectangle mediaBox, byte[] signatureImage,
-                                            float x, float y, float w, float h) throws Exception {
-        try (PDDocument visualDoc = new PDDocument()) {
-            PDPage visualPage = new PDPage(mediaBox);
-            visualDoc.addPage(visualPage);
-
-            // Create AcroForm with a signature field (required by PDFBox template)
-            PDAcroForm acroForm = new PDAcroForm(visualDoc);
-            visualDoc.getDocumentCatalog().setAcroForm(acroForm);
-
-            PDSignatureField sigField = new PDSignatureField(acroForm);
-            sigField.setPartialName("SignatureField");
-
-            PDAnnotationWidget widget = sigField.getWidgets().get(0);
-            widget.setRectangle(new PDRectangle(x, y, w, h));
-            widget.setPage(visualPage);
-
-            // Build appearance stream with the signature image
-            PDImageXObject image = PDImageXObject.createFromByteArray(visualDoc, signatureImage, "signature.png");
-
-            PDAppearanceStream appearanceStream = new PDAppearanceStream(visualDoc);
-            appearanceStream.setBBox(new PDRectangle(w, h));
-            PDResources resources = new PDResources();
-            org.apache.pdfbox.cos.COSName imgName = resources.add(image);
-            appearanceStream.setResources(resources);
-
-            // Write the image draw command into the appearance stream
-            String streamContent = String.format("q %.2f 0 0 %.2f 0 0 cm /%s Do Q", w, h, imgName.getName());
-            try (var os = appearanceStream.getCOSObject().createOutputStream()) {
-                os.write(streamContent.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
-            }
-
-            PDAppearanceDictionary appearanceDict = new PDAppearanceDictionary();
-            appearanceDict.setNormalAppearance(appearanceStream);
-            widget.setAppearance(appearanceDict);
-
-            // Add widget to page and field to AcroForm
-            visualPage.getAnnotations().add(widget);
-            acroForm.getFields().add(sigField);
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            visualDoc.save(baos);
-            return baos.toByteArray();
         }
     }
 
