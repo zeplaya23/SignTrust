@@ -6,10 +6,16 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.PDSignature;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureInterface;
 import org.apache.pdfbox.pdmodel.interactive.digitalsignature.SignatureOptions;
+import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
@@ -215,8 +221,9 @@ public class ApplicationSignatureService implements SignatureService {
     // --- Visual signature PDF template ---
 
     /**
-     * Creates a single-page PDF with the signature image drawn at the exact position.
-     * This PDF is used by PDFBox SignatureOptions as the visual representation of the signature field.
+     * Creates a PDF template for the visual signature, containing an AcroForm with a signature field
+     * and a widget annotation with the signature image as its appearance stream.
+     * This is what PDFBox's SignatureOptions.setVisualSignature() expects.
      */
     private byte[] createVisualSignaturePdf(PDRectangle mediaBox, byte[] signatureImage,
                                             float x, float y, float w, float h) throws Exception {
@@ -224,12 +231,39 @@ public class ApplicationSignatureService implements SignatureService {
             PDPage visualPage = new PDPage(mediaBox);
             visualDoc.addPage(visualPage);
 
+            // Create AcroForm with a signature field (required by PDFBox template)
+            PDAcroForm acroForm = new PDAcroForm(visualDoc);
+            visualDoc.getDocumentCatalog().setAcroForm(acroForm);
+
+            PDSignatureField sigField = new PDSignatureField(acroForm);
+            sigField.setPartialName("SignatureField");
+
+            PDAnnotationWidget widget = sigField.getWidgets().get(0);
+            widget.setRectangle(new PDRectangle(x, y, w, h));
+            widget.setPage(visualPage);
+
+            // Build appearance stream with the signature image
             PDImageXObject image = PDImageXObject.createFromByteArray(visualDoc, signatureImage, "signature.png");
 
-            try (org.apache.pdfbox.pdmodel.PDPageContentStream cs =
-                         new org.apache.pdfbox.pdmodel.PDPageContentStream(visualDoc, visualPage)) {
-                cs.drawImage(image, x, y, w, h);
+            PDAppearanceStream appearanceStream = new PDAppearanceStream(visualDoc);
+            appearanceStream.setBBox(new PDRectangle(w, h));
+            PDResources resources = new PDResources();
+            org.apache.pdfbox.cos.COSName imgName = resources.add(image);
+            appearanceStream.setResources(resources);
+
+            // Write the image draw command into the appearance stream
+            String streamContent = String.format("q %.2f 0 0 %.2f 0 0 cm /%s Do Q", w, h, imgName.getName());
+            try (var os = appearanceStream.getCOSObject().createOutputStream()) {
+                os.write(streamContent.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
             }
+
+            PDAppearanceDictionary appearanceDict = new PDAppearanceDictionary();
+            appearanceDict.setNormalAppearance(appearanceStream);
+            widget.setAppearance(appearanceDict);
+
+            // Add widget to page and field to AcroForm
+            visualPage.getAnnotations().add(widget);
+            acroForm.getFields().add(sigField);
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             visualDoc.save(baos);
