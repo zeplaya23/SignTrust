@@ -1,34 +1,34 @@
 package ci.cryptoneo.signtrust.signature;
 
+import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
  * Mock implementation of SignatureService.
+ * Activated when signtrust.signing.mode=mock (default for dev).
  * Simulates digital signing by logging metadata and stamps
  * the visual signature image on the PDF using PDFBox.
  */
 @ApplicationScoped
+@IfBuildProperty(name = "signtrust.signing.mode", stringValue = "mock", enableIfMissing = true)
 public class MockSignatureService implements SignatureService {
 
     private static final Logger LOG = Logger.getLogger(MockSignatureService.class);
 
+    @Inject
+    VisualStampService visualStampService;
+
     @Override
-    public byte[] signPdf(byte[] pdfContent, String signerCertAlias, String reason, String location) {
-        LOG.infof("Mock signing PDF (%d bytes) for alias=%s, reason=%s, location=%s",
-                pdfContent.length, signerCertAlias, reason, location);
+    public byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location) {
+        LOG.infof("Mock signing PDF (%d bytes) for name=%s, email=%s, location=%s",
+                pdfContent.length, signerName, signerEmail, location);
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        LOG.infof("Mock signature: Signed by %s at %s (reason: %s)", signerCertAlias, timestamp, reason);
+        LOG.infof("Mock signature: Signed by %s (%s) at %s", signerName, signerEmail, timestamp);
         return pdfContent;
     }
 
@@ -36,40 +36,7 @@ public class MockSignatureService implements SignatureService {
     public byte[] stampSignatureImage(byte[] pdfContent, byte[] signatureImage,
                                        int pageNumber, double xPct, double yPct,
                                        double widthPct, double heightPct, String signerName) {
-        try (PDDocument doc = Loader.loadPDF(pdfContent)) {
-            int pageIdx = pageNumber - 1;
-            if (pageIdx < 0 || pageIdx >= doc.getNumberOfPages()) {
-                LOG.warnf("Page %d out of range (total %d), skipping stamp", pageNumber, doc.getNumberOfPages());
-                return pdfContent;
-            }
-
-            PDPage page = doc.getPage(pageIdx);
-            PDRectangle mediaBox = page.getMediaBox();
-            float pageWidth = mediaBox.getWidth();
-            float pageHeight = mediaBox.getHeight();
-
-            // Convert percentage coordinates to PDF points (origin = bottom-left)
-            float x = (float) (xPct / 100.0 * pageWidth);
-            float w = (float) (widthPct / 100.0 * pageWidth);
-            float h = (float) (heightPct / 100.0 * pageHeight);
-            // PDF Y origin is bottom-left, frontend Y origin is top-left
-            float y = pageHeight - (float) (yPct / 100.0 * pageHeight) - h;
-
-            PDImageXObject image = PDImageXObject.createFromByteArray(doc, signatureImage, "signature.png");
-
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
-                cs.drawImage(image, x, y, w, h);
-            }
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            doc.save(baos);
-            LOG.infof("Stamped signature on page %d at (%.1f%%, %.1f%%) size (%.1f%% x %.1f%%) for %s",
-                    pageNumber, xPct, yPct, widthPct, heightPct, signerName);
-            return baos.toByteArray();
-        } catch (Exception e) {
-            LOG.errorf(e, "Failed to stamp signature image on PDF");
-            return pdfContent;
-        }
+        return visualStampService.stamp(pdfContent, signatureImage, pageNumber, xPct, yPct, widthPct, heightPct, signerName);
     }
 
     @Override

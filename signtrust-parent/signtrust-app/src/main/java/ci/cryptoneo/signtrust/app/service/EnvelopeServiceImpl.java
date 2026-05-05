@@ -473,9 +473,9 @@ public class EnvelopeServiceImpl implements EnvelopeService {
                 }
             }
 
-            // Apply mock digital signature
-            byte[] signed = signatureService.signPdf(content, sig.getEmail(),
-                    "Signed by " + signerFullName, "DigiSign Parapheur");
+            // Apply digital signature (mock or real PAdES via Augura)
+            byte[] signed = signatureService.signPdf(content, signerFullName,
+                    sig.getEmail(), "DigiSign Parapheur");
             storageService.upload(envelope.getTenantId(), doc.getStorageKey(), signed, doc.getContentType());
         }
 

@@ -66,6 +66,14 @@ services:
       SIGNTRUST_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       SIGNTRUST_MINIO_BUCKET: signtrust-documents
 
+      # ── Signing Service (Augura) ──
+      SIGNING_MODE: ${SIGNING_MODE:-augura}
+      SIGNING_URL: ${SIGNING_URL:-http://trust-signing-service:3000}
+      SIGNING_USERNAME: ${SIGNING_USERNAME:-admin}
+      SIGNING_PASSWORD: ${SIGNING_PASSWORD:-admin}
+      SIGNING_ORG: ${SIGNING_ORG:-Cryptoneo}
+      SIGNING_COUNTRY: ${SIGNING_COUNTRY:-CI}
+
       # ── Mail (Mailpit for dev) ──
       QUARKUS_MAILER_HOST: signtrust-mailpit
       QUARKUS_MAILER_PORT: 1025

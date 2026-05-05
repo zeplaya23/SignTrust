@@ -1,7 +1,16 @@
 package ci.cryptoneo.signtrust.signature;
 
 public interface SignatureService {
-    byte[] signPdf(byte[] pdfContent, String signerCertAlias, String reason, String location);
+    /**
+     * Sign a PDF document.
+     *
+     * @param pdfContent  PDF bytes to sign
+     * @param signerName  Full name of the signer (e.g. "Alice Dupont")
+     * @param signerEmail Email of the signer
+     * @param location    Signing location / app name
+     * @return signed PDF bytes
+     */
+    byte[] signPdf(byte[] pdfContent, String signerName, String signerEmail, String location);
 
     /**
      * Stamp a visual signature image on a PDF at the given field position.
