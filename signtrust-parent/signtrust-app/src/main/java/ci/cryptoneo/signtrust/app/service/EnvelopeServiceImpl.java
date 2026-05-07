@@ -18,9 +18,12 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 
+import jakarta.persistence.NoResultException;
+
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,9 +50,20 @@ public class EnvelopeServiceImpl implements EnvelopeService {
     @ConfigProperty(name = "signtrust.frontend.url", defaultValue = "http://localhost:5080")
     String frontendUrl;
 
+    // ─── Plan limits (planId → envelopesMax) ───
+    private static final Map<String, Integer> PLAN_ENVELOPE_LIMITS = Map.of(
+        "discovery",    5,
+        "free",         5,
+        "pro",          30,
+        "business",     200,
+        "integration",  500,
+        "enterprise",   Integer.MAX_VALUE
+    );
+
     @Override
     @Transactional
     public Long create(String tenantId, String name, String createdBy) {
+        checkEnvelopeQuota(tenantId);
         EnvelopeEntity envelope = new EnvelopeEntity();
         envelope.setTenantId(tenantId);
         envelope.setName(name);
@@ -63,6 +77,9 @@ public class EnvelopeServiceImpl implements EnvelopeService {
 
     @Transactional
     public EnvelopeEntity createFull(String tenantId, String createdBy, EnvelopeCreateRequest req) {
+        // Check quota before creating
+        checkEnvelopeQuota(tenantId);
+
         EnvelopeEntity envelope = new EnvelopeEntity();
         envelope.setTenantId(tenantId);
         envelope.setName(req.name());
@@ -74,6 +91,71 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         em.persist(envelope);
         auditService.log(tenantId, "ENVELOPE_CREATED", createdBy, "ENVELOPE", envelope.getId().toString(), "Enveloppe créée : " + req.name());
         return envelope;
+    }
+
+    private void checkEnvelopeQuota(String tenantId) {
+        String plan = getTenantPlan(tenantId);
+        int maxEnvelopes = PLAN_ENVELOPE_LIMITS.getOrDefault(plan, 5);
+        if (maxEnvelopes == Integer.MAX_VALUE) return;
+
+        // Check subscription expiry
+        String subStatus = getSubscriptionStatus(tenantId);
+        if ("EXPIRED".equals(subStatus) || "CANCELLED".equals(subStatus)) {
+            throw new WebApplicationException(
+                "Votre abonnement a expiré. Veuillez renouveler pour continuer à créer des enveloppes.",
+                Response.Status.FORBIDDEN
+            );
+        }
+
+        long used = ((Number) em.createQuery(
+            "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid"
+        ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+        if (used >= maxEnvelopes) {
+            // Send notification email to tenant owner
+            sendQuotaReachedNotification(tenantId, plan, maxEnvelopes);
+            throw new WebApplicationException(
+                "Quota atteint : votre plan \"" + plan + "\" autorise " + maxEnvelopes +
+                " enveloppes. Passez à un plan supérieur pour continuer.",
+                Response.Status.FORBIDDEN
+            );
+        }
+
+        // Warn at 80% usage
+        if (used >= maxEnvelopes * 0.8) {
+            LOG.infof("Tenant %s approaching quota: %d/%d envelopes used", tenantId, used, maxEnvelopes);
+        }
+    }
+
+    private void sendQuotaReachedNotification(String tenantId, String plan, int maxEnvelopes) {
+        try {
+            String email = (String) em.createQuery(
+                "SELECT u.email FROM UserProfileEntity u WHERE u.tenantId = :tid ORDER BY u.createdAt ASC"
+            ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
+
+            notificationService.sendEmail(email, "Quota d'enveloppes atteint",
+                "Bonjour,\n\n" +
+                "Vous avez atteint la limite de " + maxEnvelopes + " enveloppes de votre plan \"" + plan + "\".\n\n" +
+                "Pour continuer à créer des enveloppes, veuillez passer à un plan supérieur.\n\n" +
+                "Cordialement,\nL'équipe DigiSign Parapheur");
+
+            auditService.log(tenantId, "QUOTA_REACHED", "SYSTEM", "SUBSCRIPTION", plan,
+                "Quota de " + maxEnvelopes + " enveloppes atteint — notification envoyée à " + email);
+        } catch (Exception e) {
+            LOG.warnf("Failed to send quota notification for tenant %s: %s", tenantId, e.getMessage());
+        }
+    }
+
+    private String getTenantPlan(String tenantId) {
+        try {
+            return (String) em.createQuery(
+                "SELECT s.planId FROM SubscriptionEntity s WHERE s.status IN ('ACTIVE', 'TRIAL') " +
+                "AND s.userId IN (SELECT u.id FROM UserProfileEntity u WHERE u.tenantId = :tid) " +
+                "ORDER BY s.createdAt DESC"
+            ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
+        } catch (NoResultException e) {
+            return "discovery";
+        }
     }
 
     @Transactional
@@ -610,7 +692,56 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         long signed = em.createQuery("SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdBy = :uid AND e.status = 'COMPLETED'", Long.class)
                 .setParameter("tid", tenantId).setParameter("uid", userId).getSingleResult();
         double rate = total > 0 ? (double) signed / total * 100 : 0;
-        return new DashboardStatsDto(total, pending, signed, Math.round(rate * 100.0) / 100.0);
+
+        // Quota info
+        QuotaInfoDto quota = getQuotaInfo(tenantId);
+
+        return new DashboardStatsDto(total, pending, signed, Math.round(rate * 100.0) / 100.0, quota);
+    }
+
+    public QuotaInfoDto getQuotaInfo(String tenantId) {
+        String plan = getTenantPlan(tenantId);
+        int maxEnvelopes = PLAN_ENVELOPE_LIMITS.getOrDefault(plan, 5);
+
+        long used = ((Number) em.createQuery(
+            "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid"
+        ).setParameter("tid", tenantId).getSingleResult()).longValue();
+
+        // Check subscription status
+        String subStatus = getSubscriptionStatus(tenantId);
+        boolean expired = "EXPIRED".equals(subStatus) || "CANCELLED".equals(subStatus);
+        boolean quotaReached = maxEnvelopes != Integer.MAX_VALUE && used >= maxEnvelopes;
+        boolean canCreate = !expired && !quotaReached;
+
+        String message = null;
+        if (expired) {
+            message = "Votre abonnement a expiré. Veuillez renouveler pour continuer à créer des enveloppes.";
+        } else if (quotaReached) {
+            message = "Quota atteint : votre plan \"" + plan + "\" autorise " + maxEnvelopes +
+                      " enveloppes. Passez à un plan supérieur pour continuer.";
+        } else if (maxEnvelopes != Integer.MAX_VALUE && used >= maxEnvelopes * 0.8) {
+            message = "Attention : vous avez utilisé " + used + "/" + maxEnvelopes + " enveloppes de votre plan.";
+        }
+
+        return new QuotaInfoDto(plan, subStatus, maxEnvelopes == Integer.MAX_VALUE ? -1 : maxEnvelopes, used, canCreate, message);
+    }
+
+    private String getSubscriptionStatus(String tenantId) {
+        try {
+            Object[] result = (Object[]) em.createQuery(
+                "SELECT s.status, s.endDate FROM SubscriptionEntity s " +
+                "WHERE s.userId IN (SELECT u.id FROM UserProfileEntity u WHERE u.tenantId = :tid) " +
+                "ORDER BY s.createdAt DESC"
+            ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
+            String status = (String) result[0];
+            LocalDateTime endDate = (LocalDateTime) result[1];
+            if (("ACTIVE".equals(status) || "TRIAL".equals(status)) && endDate != null && endDate.isBefore(LocalDateTime.now())) {
+                return "EXPIRED";
+            }
+            return status;
+        } catch (NoResultException e) {
+            return "TRIAL";
+        }
     }
 
     public List<EnvelopeEntity> getRecent(String tenantId, String userId) {

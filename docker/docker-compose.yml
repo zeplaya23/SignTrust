@@ -70,7 +70,7 @@ services:
       SIGNING_MODE: ${SIGNING_MODE:-augura}
       SIGNING_URL: ${SIGNING_URL:-http://trust-signing-service:3000}
       SIGNING_USERNAME: ${SIGNING_USERNAME:-admin}
-      SIGNING_PASSWORD: ${SIGNING_PASSWORD:-admin}
+      SIGNING_PASSWORD: ${SIGNING_PASSWORD:-admin123}
       SIGNING_ORG: ${SIGNING_ORG:-Cryptoneo}
       SIGNING_COUNTRY: ${SIGNING_COUNTRY:-CI}
 

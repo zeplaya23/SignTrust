@@ -1,11 +1,21 @@
 import { api } from './api';
 import type { Envelope } from '../types/envelope';
 
+export interface QuotaInfo {
+  plan: string;
+  subscriptionStatus: string;
+  envelopesMax: number;
+  envelopesUsed: number;
+  canCreate: boolean;
+  message: string | null;
+}
+
 export interface DashboardStats {
   totalEnvelopes: number;
   pending: number;
   signed: number;
   completionRate: number;
+  quota: QuotaInfo | null;
 }
 
 export const dashboardService = {

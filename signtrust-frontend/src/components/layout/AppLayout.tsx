@@ -50,6 +50,7 @@ export default function AppLayout() {
   const { info: subInfo } = useSubscription();
   const planColors = getPlanColors(subInfo.status);
   const usagePercent = subInfo.max > 0 ? Math.min(100, Math.round((subInfo.used / subInfo.max) * 100)) : 0;
+  const isQuotaReached = !subInfo.canCreate;
 
   const handleLogout = () => {
     logout();
@@ -73,8 +74,15 @@ export default function AppLayout() {
             </button>
           </div>
           <button
-            onClick={() => navigate('/envelopes/new')}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+            onClick={() => subInfo.canCreate ? navigate('/envelopes/new') : navigate('/settings')}
+            disabled={!subInfo.canCreate}
+            className={clsx(
+              'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors',
+              subInfo.canCreate
+                ? 'bg-primary text-white hover:bg-primary/90'
+                : 'bg-border text-txt-muted cursor-not-allowed'
+            )}
+            title={!subInfo.canCreate ? 'Quota atteint — mettez à niveau votre plan' : undefined}
           >
             <PlusCircle size={18} />
             Nouvelle enveloppe
@@ -123,10 +131,15 @@ export default function AppLayout() {
             </div>
             <div className="w-full h-1.5 bg-border rounded-full overflow-hidden">
               <div
-                className={clsx('h-full rounded-full transition-all', planColors.bg)}
+                className={clsx('h-full rounded-full transition-all', isQuotaReached ? 'bg-danger' : planColors.bg)}
                 style={{ width: `${usagePercent}%` }}
               />
             </div>
+            {isQuotaReached && (
+              <p className="text-[10px] text-danger font-medium mt-1.5">
+                Quota atteint — Mettez à niveau
+              </p>
+            )}
           </div>
         </div>
 

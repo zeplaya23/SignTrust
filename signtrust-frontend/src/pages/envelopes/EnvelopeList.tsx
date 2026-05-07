@@ -15,6 +15,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { envelopeService } from '../../services/envelopeService';
+import { useSubscription } from '../../hooks/useSubscription';
 import type { Envelope, EnvelopeStatus } from '../../types/envelope';
 
 type FilterKey = 'ALL' | 'SENT' | 'COMPLETED' | 'CANCELLED' | 'DRAFT';
@@ -47,6 +48,8 @@ function isExpiringSoon(iso: string): boolean {
 
 export default function EnvelopeList() {
   const navigate = useNavigate();
+  const { info: subInfo } = useSubscription();
+  const canCreate = subInfo.canCreate;
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [page, setPage] = useState(1);
@@ -108,11 +111,32 @@ export default function EnvelopeList() {
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" icon={Filter}>Filtrer</Button>
           <Button variant="outline" size="sm" icon={Download}>Exporter</Button>
-          <Button variant="primary" size="sm" icon={PlusCircle} onClick={() => navigate('/envelopes/new')}>
+          <Button
+            variant="primary"
+            size="sm"
+            icon={PlusCircle}
+            onClick={() => canCreate ? navigate('/envelopes/new') : navigate('/settings')}
+            disabled={!canCreate}
+            title={!canCreate ? 'Quota atteint — mettez à niveau votre plan' : undefined}
+          >
             Nouvelle
           </Button>
         </div>
       </div>
+
+      {/* Quota warning */}
+      {!canCreate && (
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
+          <AlertCircle size={18} className="text-warning shrink-0" />
+          <p className="text-sm text-txt">
+            {subInfo.quotaMessage || `Vous avez atteint la limite de ${subInfo.max} enveloppes de votre plan "${subInfo.planName}".`}
+            {' '}
+            <button onClick={() => navigate('/settings')} className="text-primary font-semibold hover:underline">
+              Mettre à niveau
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* Filter pills */}
       <div className="flex items-center gap-2 mb-5">

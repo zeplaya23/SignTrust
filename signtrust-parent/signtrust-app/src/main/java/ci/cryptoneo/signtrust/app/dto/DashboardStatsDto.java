@@ -4,5 +4,11 @@ public record DashboardStatsDto(
         long totalEnvelopes,
         long pending,
         long signed,
-        double completionRate
-) {}
+        double completionRate,
+        QuotaInfoDto quota
+) {
+    // Backward-compatible constructor
+    public DashboardStatsDto(long totalEnvelopes, long pending, long signed, double completionRate) {
+        this(totalEnvelopes, pending, signed, completionRate, null);
+    }
+}

@@ -11,10 +11,19 @@ import {
   FolderOpen,
   Users,
   Inbox,
+  Activity,
+  Send,
+  XCircle,
+  Eye,
+  Trash2,
+  Edit3,
+  UserPlus,
+  AlertCircle,
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
-import { dashboardService } from '../services/dashboardService';
+import { dashboardService, type QuotaInfo } from '../services/dashboardService';
+import { auditService, type AuditLog } from '../services/auditService';
 import type { Envelope, EnvelopeStatus } from '../types/envelope';
 
 function statusToBadge(status: EnvelopeStatus): 'pending' | 'signed' | 'rejected' | 'draft' {
@@ -40,18 +49,23 @@ interface Stats {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<Stats>({ totalEnvelopes: 0, pending: 0, signed: 0, completionRate: 0 });
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
   const [recent, setRecent] = useState<Envelope[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [s, r] = await Promise.all([
+        const [s, r, a] = await Promise.all([
           dashboardService.getStats(),
           dashboardService.getRecent(),
+          auditService.list({ page: 0, size: 8 }).catch(() => ({ items: [] })),
         ]);
         setStats(s);
+        setQuota(s.quota ?? null);
         setRecent(r);
+        setAuditLogs(a.items ?? []);
       } catch {
         // API error — keep defaults (zeros)
       } finally {
@@ -74,6 +88,20 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-dark">Tableau de bord</h1>
       </div>
+
+      {/* Quota warning */}
+      {quota && !quota.canCreate && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
+          <AlertCircle size={18} className="text-warning shrink-0" />
+          <p className="text-sm text-txt">
+            {quota.message || `Vous avez atteint la limite de ${quota.envelopesMax} enveloppes de votre plan "${quota.plan}".`}
+            {' '}
+            <button onClick={() => navigate('/settings')} className="text-primary font-semibold hover:underline">
+              Mettre à niveau
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* Metric cards */}
       <div className="grid grid-cols-4 gap-5 mb-8">
@@ -112,12 +140,14 @@ export default function Dashboard() {
                 <Inbox size={40} className="text-border mx-auto mb-3" />
                 <p className="text-sm text-txt-muted mb-1">Aucune enveloppe</p>
                 <p className="text-xs text-txt-muted mb-4">Creez votre premiere enveloppe pour commencer</p>
-                <button
-                  onClick={() => navigate('/envelopes/new')}
-                  className="inline-flex items-center gap-2 text-sm text-primary font-semibold hover:underline"
-                >
-                  <PlusCircle size={16} /> Nouvelle enveloppe
-                </button>
+                {quota?.canCreate !== false && (
+                  <button
+                    onClick={() => navigate('/envelopes/new')}
+                    className="inline-flex items-center gap-2 text-sm text-primary font-semibold hover:underline"
+                  >
+                    <PlusCircle size={16} /> Nouvelle enveloppe
+                  </button>
+                )}
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -170,15 +200,20 @@ export default function Dashboard() {
             <h3 className="text-base font-semibold text-dark mb-4">Actions rapides</h3>
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => navigate('/envelopes/new')}
-                className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-bg transition-colors text-left"
+                onClick={() => quota?.canCreate !== false ? navigate('/envelopes/new') : navigate('/settings')}
+                disabled={quota?.canCreate === false}
+                className={`flex items-center gap-3 p-3 rounded-xl border border-border transition-colors text-left ${
+                  quota?.canCreate === false ? 'opacity-50 cursor-not-allowed' : 'hover:bg-bg'
+                }`}
               >
                 <div className="w-9 h-9 rounded-lg bg-primary-light flex items-center justify-center">
                   <PlusCircle size={18} className="text-primary" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-txt">Nouvelle enveloppe</p>
-                  <p className="text-xs text-txt-muted">Creer et envoyer</p>
+                  <p className="text-xs text-txt-muted">
+                    {quota?.canCreate === false ? 'Quota atteint' : 'Creer et envoyer'}
+                  </p>
                 </div>
               </button>
               <button
@@ -207,8 +242,71 @@ export default function Dashboard() {
               </button>
             </div>
           </Card>
+
+          {/* Activity log */}
+          <Card padding="md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-dark flex items-center gap-2">
+                <Activity size={16} className="text-primary" />
+                Journal d'activité
+              </h3>
+            </div>
+            {auditLogs.length === 0 ? (
+              <p className="text-sm text-txt-muted text-center py-4">Aucune activité récente</p>
+            ) : (
+              <div className="space-y-1">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-bg/50 transition-colors">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${actionStyle(log.action).bg}`}>
+                      {actionStyle(log.action).icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-txt leading-tight">
+                        <span className="font-medium">{actionLabel(log.action)}</span>
+                        {log.entityType && (
+                          <span className="text-txt-muted"> · {log.entityType}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-txt-muted truncate">{log.details}</p>
+                      <p className="text-[10px] text-txt-muted mt-0.5">{formatDate(log.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>
   );
+}
+
+function actionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    ENVELOPE_CREATED: 'Enveloppe créée',
+    ENVELOPE_SENT: 'Enveloppe envoyée',
+    ENVELOPE_COMPLETED: 'Enveloppe complétée',
+    ENVELOPE_CANCELLED: 'Enveloppe annulée',
+    DOCUMENT_SIGNED: 'Document signé',
+    DOCUMENT_REJECTED: 'Document refusé',
+    SIGNATORY_ADDED: 'Signataire ajouté',
+    SIGNATURE_REQUESTED: 'Signature demandée',
+    ENVELOPE_VIEWED: 'Enveloppe consultée',
+    ENVELOPE_DELETED: 'Enveloppe supprimée',
+    ENVELOPE_UPDATED: 'Enveloppe modifiée',
+  };
+  return labels[action] || action.replace(/_/g, ' ').toLowerCase();
+}
+
+function actionStyle(action: string): { bg: string; icon: React.ReactNode } {
+  if (action.includes('SIGN')) return { bg: 'bg-success-light', icon: <PenTool size={14} className="text-success" /> };
+  if (action.includes('SENT') || action.includes('REQUESTED')) return { bg: 'bg-primary-light', icon: <Send size={14} className="text-primary" /> };
+  if (action.includes('COMPLETED')) return { bg: 'bg-success-light', icon: <CheckCircle2 size={14} className="text-success" /> };
+  if (action.includes('CANCEL') || action.includes('REJECT')) return { bg: 'bg-danger-light', icon: <XCircle size={14} className="text-danger" /> };
+  if (action.includes('CREATED')) return { bg: 'bg-accent-light', icon: <PlusCircle size={14} className="text-accent" /> };
+  if (action.includes('VIEW')) return { bg: 'bg-primary-light', icon: <Eye size={14} className="text-primary" /> };
+  if (action.includes('DELETE')) return { bg: 'bg-danger-light', icon: <Trash2 size={14} className="text-danger" /> };
+  if (action.includes('UPDATE')) return { bg: 'bg-warning-light', icon: <Edit3 size={14} className="text-warning" /> };
+  if (action.includes('SIGNATORY')) return { bg: 'bg-accent-light', icon: <UserPlus size={14} className="text-accent" /> };
+  return { bg: 'bg-bg', icon: <Activity size={14} className="text-txt-muted" /> };
 }

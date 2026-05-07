@@ -13,6 +13,8 @@ export interface SubscriptionInfo {
   price: number;
   startDate: string;
   endDate: string;
+  canCreate: boolean;
+  quotaMessage: string | null;
 }
 
 const DEFAULT_INFO: SubscriptionInfo = {
@@ -24,6 +26,8 @@ const DEFAULT_INFO: SubscriptionInfo = {
   price: 0,
   startDate: '',
   endDate: '',
+  canCreate: true,
+  quotaMessage: null,
 };
 
 export function useSubscription() {
@@ -53,15 +57,18 @@ export function useSubscription() {
         ]);
         if (controller.signal.aborted) return;
         const plan = PLANS.find((p) => p.id === sub.planId) || PLANS[0];
+        const quota = stats.quota;
         setInfo({
           planId: sub.planId || 'discovery',
           planName: plan.name,
           status: sub.status || 'NONE',
-          used: stats.totalEnvelopes,
-          max: plan.envelopesPerMonth,
+          used: quota?.envelopesUsed ?? stats.totalEnvelopes,
+          max: quota?.envelopesMax ?? plan.envelopesPerMonth,
           price: plan.price,
           startDate: sub.startDate || '',
           endDate: sub.endDate || '',
+          canCreate: quota?.canCreate ?? true,
+          quotaMessage: quota?.message ?? null,
         });
       } catch {
         if (!controller.signal.aborted) {

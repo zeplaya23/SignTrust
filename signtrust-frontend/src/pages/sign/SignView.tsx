@@ -7,6 +7,7 @@ import {
   Shield,
   PenTool,
   Type,
+  ImageIcon,
   Eraser,
   Loader2,
   AlertCircle,
@@ -14,6 +15,7 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
+  Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -40,7 +42,7 @@ interface SigningInfo {
   fields: SignatureField[];
 }
 
-type SignTab = 'draw' | 'text';
+type SignTab = 'draw' | 'text' | 'image';
 
 async function fetchSignDocumentBlobUrl(token: string, docId: number): Promise<string> {
   const { data } = await axios.get(`${ENV.API_BASE_URL}/sign/${token}/documents/${docId}`, {
@@ -72,6 +74,8 @@ export default function SignView() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [textSignature, setTextSignature] = useState('');
+  const [imageSignature, setImageSignature] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [livePreview, setLivePreview] = useState<string | null>(null);
 
   // Submit state
@@ -241,12 +245,24 @@ export default function SignView() {
       if (!hasDrawn || !canvasRef.current) return null;
       return canvasRef.current.toDataURL('image/png');
     }
+    if (activeTab === 'image') return imageSignature;
     return textPreview();
   };
 
   // The preview image shown in fields
-  const fieldPreviewSrc = activeTab === 'draw' ? livePreview : textPreview();
-  const hasSignature = activeTab === 'draw' ? hasDrawn : textSignature.trim().length > 0;
+  const fieldPreviewSrc = activeTab === 'draw' ? livePreview : activeTab === 'image' ? imageSignature : textPreview();
+  const hasSignature = activeTab === 'draw' ? hasDrawn : activeTab === 'image' ? !!imageSignature : textSignature.trim().length > 0;
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageSignature(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const openPreview = () => {
     const sig = getSignatureBase64();
@@ -302,6 +318,7 @@ export default function SignView() {
   const tabs: { key: SignTab; label: string; icon: typeof PenTool }[] = [
     { key: 'draw', label: 'Dessiner', icon: PenTool },
     { key: 'text', label: 'Texte', icon: Type },
+    { key: 'image', label: 'Image', icon: ImageIcon },
   ];
 
   // Fields for current page and document
@@ -550,6 +567,29 @@ export default function SignView() {
                   />
                 </div>
               )}
+              {activeTab === 'image' && (
+                <div className="h-[200px] border-2 border-dashed border-border rounded-xl flex items-center justify-center bg-white mb-3 overflow-hidden">
+                  {imageSignature ? (
+                    <img src={imageSignature} alt="Signature" className="max-w-full max-h-full object-contain p-2" />
+                  ) : (
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      className="flex flex-col items-center gap-2 text-txt-muted hover:text-primary transition-colors"
+                    >
+                      <Upload size={32} />
+                      <span className="text-sm font-medium">Cliquez pour importer une image</span>
+                      <span className="text-xs">PNG, JPG ou SVG</span>
+                    </button>
+                  )}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                </div>
+              )}
 
               <Button
                 variant="outline"
@@ -558,10 +598,11 @@ export default function SignView() {
                 className="w-full"
                 onClick={() => {
                   if (activeTab === 'draw') clearCanvas();
-                  else setTextSignature('');
+                  else if (activeTab === 'text') setTextSignature('');
+                  else setImageSignature(null);
                 }}
               >
-                Effacer
+                {activeTab === 'image' && imageSignature ? 'Supprimer l\'image' : 'Effacer'}
               </Button>
             </Card>
 
