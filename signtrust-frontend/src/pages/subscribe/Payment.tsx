@@ -25,19 +25,27 @@ export default function Payment() {
   } = useSubscriptionStore();
   const authUser = useAuthStore((s) => s.user);
   const isLoggedIn = !!authUser;
-  const effectiveUserId = userId ?? (authUser?.id ? Number(authUser.id) : null);
+  // For logged-in users upgrading plan: send 0 so backend resolves from JWT
+  const effectiveUserId = userId ?? (isLoggedIn ? 0 : null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handlePay = async () => {
-    if (!effectiveUserId || !selectedPlan) return;
+    if (!effectiveUserId) {
+      setError('Session utilisateur introuvable. Veuillez vous reconnecter.');
+      return;
+    }
+    if (!selectedPlan) {
+      setError('Aucun plan sélectionné. Veuillez retourner au choix du plan.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
       const resp = await paymentService.initialize({
-        userId: effectiveUserId!,
+        userId: effectiveUserId,
         planId: selectedPlan.id,
         paymentMethod,
         mobileOperator,

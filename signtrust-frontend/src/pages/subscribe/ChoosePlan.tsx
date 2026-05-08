@@ -100,11 +100,7 @@ export default function ChoosePlan() {
       const proPlan = PLANS.find((p) => p.id === 'pro');
       if (proPlan) selectPlan(proPlan);
     }
-    // If user is already logged in, set userId in subscription store
-    if (isLoggedIn && user?.id) {
-      useSubscriptionStore.setState({ userId: Number(user.id) });
-    }
-  }, [selectedPlan, selectPlan, isLoggedIn, user?.id]);
+  }, [selectedPlan, selectPlan]);
 
   const isDiscovery = selectedPlan?.id === 'discovery';
   const nextRoute = isLoggedIn ? '/subscribe/payment' : '/subscribe/register';
