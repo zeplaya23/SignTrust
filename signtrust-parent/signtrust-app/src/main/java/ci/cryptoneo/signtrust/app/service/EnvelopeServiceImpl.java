@@ -604,6 +604,9 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             LOG.errorf("Failed to send signature confirmation to %s: %s", sig.getEmail(), e.getMessage());
         }
 
+        // Flush to ensure sig status is persisted before checking completion
+        em.flush();
+
         // Check if all signatories have signed
         checkEnvelopeCompletion(envelope);
     }
@@ -650,14 +653,21 @@ public class EnvelopeServiceImpl implements EnvelopeService {
      * Used for sequential signing mode after each signature.
      */
     private void sendNextSequentialInvitation(EnvelopeEntity envelope) {
+        // Refresh envelope to get up-to-date signatory statuses
+        em.refresh(envelope);
+
         Optional<SignatoryEntity> nextSigner = envelope.getSignatories().stream()
                 .filter(s -> !"CC".equals(s.getRole()))
                 .filter(s -> "PENDING".equals(s.getStatus()))
-                .filter(s -> s.getToken() == null) // not yet invited
                 .sorted(Comparator.comparingInt(s -> s.getOrderIndex() != null ? s.getOrderIndex() : Integer.MAX_VALUE))
                 .findFirst();
 
-        nextSigner.ifPresent(sig -> sendSigningInvitation(sig, envelope));
+        if (nextSigner.isPresent()) {
+            SignatoryEntity sig = nextSigner.get();
+            LOG.infof("Sequential signing: sending invitation to next signer %s (%s) for envelope %d",
+                    sig.getFirstName() + " " + sig.getLastName(), sig.getEmail(), envelope.getId());
+            sendSigningInvitation(sig, envelope);
+        }
     }
 
     /**
