@@ -66,7 +66,7 @@ export default function Settings() {
 
   // Subscription
   const { info: subscription } = useSubscription();
-  const usagePercent = subscription.max > 0 ? Math.round((subscription.used / subscription.max) * 100) : 0;
+  const usagePercent = subscription.max > 0 ? Math.min(100, Math.round((subscription.used / subscription.max) * 100)) : 0;
   const isDiscovery = subscription.planId === 'discovery';
 
   return (
@@ -272,10 +272,13 @@ export default function Settings() {
               </div>
               <div className="w-full bg-border rounded-full h-2.5">
                 <div
-                  className="bg-accent h-2.5 rounded-full transition-all"
+                  className={`h-2.5 rounded-full transition-all ${subscription.used > subscription.max && subscription.max !== -1 ? 'bg-danger' : 'bg-accent'}`}
                   style={{ width: `${subscription.max === -1 ? 0 : usagePercent}%` }}
                 />
               </div>
+              {subscription.used > subscription.max && subscription.max !== -1 && (
+                <p className="text-xs text-danger font-medium mt-1">Quota dépassé — veuillez mettre à niveau votre plan</p>
+              )}
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate('/subscribe/plan')}>
               {isDiscovery ? 'Passer �� un plan supérieur' : 'Changer de plan'}
