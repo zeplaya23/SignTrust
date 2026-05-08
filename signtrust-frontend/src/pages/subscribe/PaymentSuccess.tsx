@@ -7,6 +7,7 @@ import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { authService } from '../../services/authService';
 import type { SubscriptionStatus } from '../../types/subscription';
+import { refreshSubscription } from '../../hooks/useSubscription';
 
 function getRenewDate(): string {
   const date = new Date();
@@ -70,6 +71,7 @@ export default function PaymentSuccess() {
 
   const handleGo = () => {
     reset();
+    refreshSubscription();
     navigate('/dashboard');
   };
 

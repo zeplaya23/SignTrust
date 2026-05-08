@@ -41,6 +41,7 @@ import PdfViewer from '../../components/ui/PdfViewer';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { envelopeService } from '../../services/envelopeService';
 import { contactService, type Contact } from '../../services/contactService';
+import { refreshSubscription } from '../../hooks/useSubscription';
 import type { SignatoryRole, SigningOrder, FieldType } from '../../types/envelope';
 
 const STEPS = ['Documents', 'Signataires', 'Champs', 'Résumé', 'Envoi'];
@@ -622,6 +623,7 @@ export default function NewEnvelope() {
           }
         }
 
+        refreshSubscription();
         setStep(4);
       } catch (err: unknown) {
         const axiosErr = err as { response?: { data?: { message?: string } }; message?: string };

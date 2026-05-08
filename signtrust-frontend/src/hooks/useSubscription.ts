@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { create } from 'zustand';
 import { settingsService } from '../services/settingsService';
 import { dashboardService } from '../services/dashboardService';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -30,14 +31,60 @@ const DEFAULT_INFO: SubscriptionInfo = {
   quotaMessage: null,
 };
 
+// Shared refresh trigger — any component can call refreshSubscription()
+interface RefreshStore {
+  key: number;
+  refresh: () => void;
+}
+
+const useRefreshStore = create<RefreshStore>((set) => ({
+  key: 0,
+  refresh: () => set((s) => ({ key: s.key + 1 })),
+}));
+
+/** Call this from anywhere to force subscription/quota reload */
+export const refreshSubscription = () => useRefreshStore.getState().refresh();
+
 export function useSubscription() {
   const [info, setInfo] = useState<SubscriptionInfo>(DEFAULT_INFO);
   const [loading, setLoading] = useState(true);
   const userId = useAuthStore((s) => s.user?.id);
+  const refreshKey = useRefreshStore((s) => s.key);
   const abortRef = useRef<AbortController | null>(null);
 
+  const load = useCallback(async (controller: AbortController) => {
+    try {
+      const [sub, stats] = await Promise.all([
+        settingsService.getSubscription(),
+        dashboardService.getStats(),
+      ]);
+      if (controller.signal.aborted) return;
+      const plan = PLANS.find((p) => p.id === sub.planId) || PLANS[0];
+      const quota = stats.quota;
+      setInfo({
+        planId: sub.planId || 'discovery',
+        planName: plan.name,
+        status: sub.status || 'NONE',
+        used: quota?.envelopesUsed ?? stats.totalEnvelopes,
+        max: quota?.envelopesMax ?? plan.envelopesPerMonth,
+        price: plan.price,
+        startDate: sub.startDate || '',
+        endDate: sub.endDate || '',
+        canCreate: quota?.canCreate ?? true,
+        quotaMessage: quota?.message ?? null,
+      });
+    } catch {
+      if (!controller.signal.aborted) {
+        setInfo(DEFAULT_INFO);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    // Abort previous request if user changed
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -49,41 +96,10 @@ export function useSubscription() {
     }
 
     setLoading(true);
-    const load = async () => {
-      try {
-        const [sub, stats] = await Promise.all([
-          settingsService.getSubscription(),
-          dashboardService.getStats(),
-        ]);
-        if (controller.signal.aborted) return;
-        const plan = PLANS.find((p) => p.id === sub.planId) || PLANS[0];
-        const quota = stats.quota;
-        setInfo({
-          planId: sub.planId || 'discovery',
-          planName: plan.name,
-          status: sub.status || 'NONE',
-          used: quota?.envelopesUsed ?? stats.totalEnvelopes,
-          max: quota?.envelopesMax ?? plan.envelopesPerMonth,
-          price: plan.price,
-          startDate: sub.startDate || '',
-          endDate: sub.endDate || '',
-          canCreate: quota?.canCreate ?? true,
-          quotaMessage: quota?.message ?? null,
-        });
-      } catch {
-        if (!controller.signal.aborted) {
-          setInfo(DEFAULT_INFO);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-    load();
+    load(controller);
 
     return () => controller.abort();
-  }, [userId]);
+  }, [userId, refreshKey, load]);
 
-  return { info, loading };
+  return { info, loading, refresh: useRefreshStore.getState().refresh };
 }

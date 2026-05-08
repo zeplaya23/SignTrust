@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   FolderOpen,
@@ -45,9 +46,15 @@ function getPlanColors(status: string) {
 
 export default function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { info: subInfo } = useSubscription();
+  const { info: subInfo, refresh } = useSubscription();
+
+  // Refresh subscription info on route change
+  useEffect(() => {
+    refresh();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   const planColors = getPlanColors(subInfo.status);
   const usagePercent = subInfo.max > 0 ? Math.min(100, Math.round((subInfo.used / subInfo.max) * 100)) : 0;
   const isQuotaReached = !subInfo.canCreate;
