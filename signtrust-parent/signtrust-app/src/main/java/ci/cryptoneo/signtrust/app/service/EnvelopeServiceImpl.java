@@ -107,9 +107,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
             );
         }
 
-        long used = ((Number) em.createQuery(
-            "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid"
-        ).setParameter("tid", tenantId).getSingleResult()).longValue();
+        long used = countEnvelopesSinceSubscription(tenantId);
 
         if (used >= maxEnvelopes) {
             // Send notification email to tenant owner
@@ -124,6 +122,32 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         // Warn at 80% usage
         if (used >= maxEnvelopes * 0.8) {
             LOG.infof("Tenant %s approaching quota: %d/%d envelopes used", tenantId, used, maxEnvelopes);
+        }
+    }
+
+    private long countEnvelopesSinceSubscription(String tenantId) {
+        LocalDateTime subStart = getSubscriptionStartDate(tenantId);
+        if (subStart == null) {
+            // No subscription found — count all envelopes
+            return ((Number) em.createQuery(
+                "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid"
+            ).setParameter("tid", tenantId).getSingleResult()).longValue();
+        }
+        return ((Number) em.createQuery(
+            "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid AND e.createdAt >= :since"
+        ).setParameter("tid", tenantId).setParameter("since", subStart).getSingleResult()).longValue();
+    }
+
+    private LocalDateTime getSubscriptionStartDate(String tenantId) {
+        try {
+            return (LocalDateTime) em.createQuery(
+                "SELECT s.startDate FROM SubscriptionEntity s " +
+                "WHERE s.status IN ('ACTIVE', 'TRIAL') " +
+                "AND s.userId IN (SELECT u.id FROM UserProfileEntity u WHERE u.tenantId = :tid) " +
+                "ORDER BY s.createdAt DESC"
+            ).setParameter("tid", tenantId).setMaxResults(1).getSingleResult();
+        } catch (NoResultException e) {
+            return null;
         }
     }
 
@@ -703,9 +727,7 @@ public class EnvelopeServiceImpl implements EnvelopeService {
         String plan = getTenantPlan(tenantId);
         int maxEnvelopes = PLAN_ENVELOPE_LIMITS.getOrDefault(plan, 5);
 
-        long used = ((Number) em.createQuery(
-            "SELECT COUNT(e) FROM EnvelopeEntity e WHERE e.tenantId = :tid"
-        ).setParameter("tid", tenantId).getSingleResult()).longValue();
+        long used = countEnvelopesSinceSubscription(tenantId);
 
         // Check subscription status
         String subStatus = getSubscriptionStatus(tenantId);
