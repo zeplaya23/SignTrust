@@ -287,14 +287,30 @@ public class ApplicationSignatureService implements SignatureService {
     private byte[] addDssWithPdfBox(byte[] signedPdf, java.util.List<byte[]> certBuffers, java.util.List<byte[]> ocspBuffers) throws Exception {
         try (PDDocument doc = Loader.loadPDF(signedPdf)) {
             org.apache.pdfbox.cos.COSDictionary catalogDict = doc.getDocumentCatalog().getCOSObject();
+            org.apache.pdfbox.cos.COSName DSS = org.apache.pdfbox.cos.COSName.getPDFName("DSS");
+            org.apache.pdfbox.cos.COSName CERTS = org.apache.pdfbox.cos.COSName.getPDFName("Certs");
+            org.apache.pdfbox.cos.COSName OCSPS = org.apache.pdfbox.cos.COSName.getPDFName("OCSPs");
 
-            // Create DSS dictionary
-            org.apache.pdfbox.cos.COSDictionary dssDict = new org.apache.pdfbox.cos.COSDictionary();
-            dssDict.setItem(org.apache.pdfbox.cos.COSName.TYPE, org.apache.pdfbox.cos.COSName.getPDFName("DSS"));
+            // Retrieve existing DSS or create a new one
+            org.apache.pdfbox.cos.COSDictionary dssDict;
+            org.apache.pdfbox.cos.COSBase existingDss = catalogDict.getDictionaryObject(DSS);
+            if (existingDss instanceof org.apache.pdfbox.cos.COSDictionary) {
+                dssDict = (org.apache.pdfbox.cos.COSDictionary) existingDss;
+                LOG.info("Merging new validation data into existing DSS dictionary");
+            } else {
+                dssDict = new org.apache.pdfbox.cos.COSDictionary();
+                dssDict.setItem(org.apache.pdfbox.cos.COSName.TYPE, org.apache.pdfbox.cos.COSName.getPDFName("DSS"));
+            }
 
-            // Add Certs array
+            // Merge Certs — keep existing + add new
             if (!certBuffers.isEmpty()) {
-                org.apache.pdfbox.cos.COSArray certsArr = new org.apache.pdfbox.cos.COSArray();
+                org.apache.pdfbox.cos.COSArray certsArr;
+                org.apache.pdfbox.cos.COSBase existingCerts = dssDict.getDictionaryObject(CERTS);
+                if (existingCerts instanceof org.apache.pdfbox.cos.COSArray) {
+                    certsArr = (org.apache.pdfbox.cos.COSArray) existingCerts;
+                } else {
+                    certsArr = new org.apache.pdfbox.cos.COSArray();
+                }
                 for (byte[] certData : certBuffers) {
                     org.apache.pdfbox.cos.COSStream certStream = doc.getDocument().createCOSStream();
                     try (java.io.OutputStream os = certStream.createOutputStream()) {
@@ -302,12 +318,18 @@ public class ApplicationSignatureService implements SignatureService {
                     }
                     certsArr.add(certStream);
                 }
-                dssDict.setItem(org.apache.pdfbox.cos.COSName.getPDFName("Certs"), certsArr);
+                dssDict.setItem(CERTS, certsArr);
             }
 
-            // Add OCSPs array
+            // Merge OCSPs — keep existing + add new
             if (!ocspBuffers.isEmpty()) {
-                org.apache.pdfbox.cos.COSArray ocspsArr = new org.apache.pdfbox.cos.COSArray();
+                org.apache.pdfbox.cos.COSArray ocspsArr;
+                org.apache.pdfbox.cos.COSBase existingOcsps = dssDict.getDictionaryObject(OCSPS);
+                if (existingOcsps instanceof org.apache.pdfbox.cos.COSArray) {
+                    ocspsArr = (org.apache.pdfbox.cos.COSArray) existingOcsps;
+                } else {
+                    ocspsArr = new org.apache.pdfbox.cos.COSArray();
+                }
                 for (byte[] ocspData : ocspBuffers) {
                     org.apache.pdfbox.cos.COSStream ocspStream = doc.getDocument().createCOSStream();
                     try (java.io.OutputStream os = ocspStream.createOutputStream()) {
@@ -315,13 +337,13 @@ public class ApplicationSignatureService implements SignatureService {
                     }
                     ocspsArr.add(ocspStream);
                 }
-                dssDict.setItem(org.apache.pdfbox.cos.COSName.getPDFName("OCSPs"), ocspsArr);
+                dssDict.setItem(OCSPS, ocspsArr);
             }
 
-            // Add DSS to catalog
-            catalogDict.setItem(org.apache.pdfbox.cos.COSName.getPDFName("DSS"), dssDict);
+            // Set DSS on catalog (may already be there if merging)
+            catalogDict.setItem(DSS, dssDict);
 
-            // Save incrementally (preserves the signature)
+            // Save incrementally (preserves existing signatures)
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             doc.saveIncremental(out);
             return out.toByteArray();
