@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import TopBar from '../../components/layout/TopBar';
 import { PLANS, type Plan } from '../../config/plans';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useEffect } from 'react';
 
 function formatPrice(price: number): string {
@@ -91,15 +92,22 @@ function CompactPlanCard({ plan, selected, onSelect }: { plan: Plan; selected: b
 
 export default function ChoosePlan() {
   const { selectedPlan, selectPlan } = useSubscriptionStore();
+  const user = useAuthStore((s) => s.user);
+  const isLoggedIn = !!user;
 
   useEffect(() => {
     if (!selectedPlan) {
       const proPlan = PLANS.find((p) => p.id === 'pro');
       if (proPlan) selectPlan(proPlan);
     }
-  }, [selectedPlan, selectPlan]);
+    // If user is already logged in, set userId in subscription store
+    if (isLoggedIn && user?.id) {
+      useSubscriptionStore.setState({ userId: Number(user.id) });
+    }
+  }, [selectedPlan, selectPlan, isLoggedIn, user?.id]);
 
   const isDiscovery = selectedPlan?.id === 'discovery';
+  const nextRoute = isLoggedIn ? '/subscribe/payment' : '/subscribe/register';
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -151,7 +159,7 @@ export default function ChoosePlan() {
             </div>
           )}
 
-          <Link to={selectedPlan && !selectedPlan.contactOnly ? '/subscribe/register' : '#'}>
+          <Link to={selectedPlan && !selectedPlan.contactOnly ? nextRoute : '#'}>
             <button
               disabled={!selectedPlan || selectedPlan.contactOnly}
               className={clsx(

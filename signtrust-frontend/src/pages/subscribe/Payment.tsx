@@ -9,6 +9,7 @@ import PlanSummary from '../../components/subscription/PlanSummary';
 import Field from '../../components/ui/Field';
 import Button from '../../components/ui/Button';
 import { useSubscriptionStore } from '../../stores/useSubscriptionStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { paymentService } from '../../services/paymentService';
 
 export default function Payment() {
@@ -22,18 +23,21 @@ export default function Payment() {
     userId,
     setPaymentReference,
   } = useSubscriptionStore();
+  const authUser = useAuthStore((s) => s.user);
+  const isLoggedIn = !!authUser;
+  const effectiveUserId = userId ?? (authUser?.id ? Number(authUser.id) : null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handlePay = async () => {
-    if (!userId || !selectedPlan) return;
+    if (!effectiveUserId || !selectedPlan) return;
 
     setLoading(true);
     setError(null);
 
     try {
       const resp = await paymentService.initialize({
-        userId,
+        userId: effectiveUserId!,
         planId: selectedPlan.id,
         paymentMethod,
         mobileOperator,
@@ -117,7 +121,7 @@ export default function Payment() {
 
         <div className="flex items-center justify-between">
           <Link
-            to="/subscribe/verify"
+            to={isLoggedIn ? '/subscribe/plan' : '/subscribe/verify'}
             className="rounded-xl font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer bg-white text-primary border border-border hover:bg-bg px-5 py-2.5 text-sm"
           >
             Retour
