@@ -105,7 +105,7 @@ export default function Settings() {
               </div>
               <div>
                 <p className="text-xs text-txt-muted uppercase tracking-wider mb-1">Téléphone</p>
-                <p className="text-sm font-medium text-txt">{profileForm.phone || '���'}</p>
+                <p className="text-sm font-medium text-txt">{profileForm.phone || '—'}</p>
               </div>
               <Button variant="outline" size="sm" onClick={() => setEditProfile(true)}>Modifier</Button>
             </div>
@@ -267,7 +267,7 @@ export default function Settings() {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs text-txt-muted uppercase tracking-wider">Utilisation</p>
                 <p className="text-sm font-medium text-txt">
-                  {subscription.used}/{subscription.max === -1 ? '���' : subscription.max} enveloppes
+                  {subscription.used}/{subscription.max === -1 ? '∞' : subscription.max} enveloppes
                 </p>
               </div>
               <div className="w-full bg-border rounded-full h-2.5">
@@ -281,7 +281,7 @@ export default function Settings() {
               )}
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate('/subscribe/plan')}>
-              {isDiscovery ? 'Passer �� un plan supérieur' : 'Changer de plan'}
+              {isDiscovery ? 'Passer à un plan supérieur' : 'Changer de plan'}
             </Button>
           </div>
         </Card>
