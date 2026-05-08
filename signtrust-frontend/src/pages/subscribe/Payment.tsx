@@ -31,7 +31,7 @@ export default function Payment() {
   const [error, setError] = useState<string | null>(null);
 
   const handlePay = async () => {
-    if (!effectiveUserId) {
+    if (effectiveUserId === null) {
       setError('Session utilisateur introuvable. Veuillez vous reconnecter.');
       return;
     }
