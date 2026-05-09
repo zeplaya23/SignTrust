@@ -1,16 +1,14 @@
 # ──────────────────────────────────────────────
-# Stage 1 — Build the React frontend
+# Stage 1 — Build the React frontend (desktop)
 # ──────────────────────────────────────────────
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files first for better layer caching
 COPY signtrust-frontend/package.json signtrust-frontend/package-lock.json* ./
 
 RUN npm ci
 
-# Copy the rest of the frontend source
 COPY signtrust-frontend/ ./
 
 RUN npm run build
@@ -31,21 +29,37 @@ COPY signtrust-consoleadmin-frontend/ ./
 RUN npm run build
 
 # ──────────────────────────────────────────────
-# Stage 3 — Serve with Nginx
+# Stage 3 — Build the Web Mobile frontend
+# ──────────────────────────────────────────────
+FROM node:20-alpine AS build-mobile
+
+WORKDIR /app
+
+COPY signtrust-webmobile/package.json signtrust-webmobile/package-lock.json* ./
+
+RUN npm ci
+
+COPY signtrust-webmobile/ ./
+
+RUN npm run build
+
+# ──────────────────────────────────────────────
+# Stage 4 — Serve with Nginx
 # ──────────────────────────────────────────────
 FROM nginx:alpine
 
-# Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx config
 COPY docker/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built tenant frontend from stage 1
+# Desktop frontend
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy built admin console from stage 2
+# Admin console
 COPY --from=build-admin /app/dist /usr/share/nginx/admin
+
+# Mobile frontend
+COPY --from=build-mobile /app/dist /usr/share/nginx/mobile
 
 EXPOSE 80
 
