@@ -49,6 +49,8 @@ export const envelopeService = {
   async uploadDocument(envelopeId: number, file: File): Promise<Document> {
     const formData = new FormData();
     formData.append('file', file);
+    // L'instance axios a un default Content-Type 'application/json' qu'il faut écraser.
+    // En fournissant 'multipart/form-data' axios injecte automatiquement le boundary.
     const { data } = await api.post(`/envelopes/${envelopeId}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -66,6 +68,13 @@ export const envelopeService = {
     return URL.createObjectURL(data);
   },
 
+  async getDocumentBlob(envelopeId: number, docId: number): Promise<Blob> {
+    const { data } = await api.get(`/envelopes/${envelopeId}/documents/${docId}`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
+
   async downloadDocument(envelopeId: number, docId: number, fileName: string): Promise<void> {
     const { data } = await api.get(`/envelopes/${envelopeId}/documents/${docId}`, {
       responseType: 'blob',
@@ -74,6 +83,20 @@ export const envelopeService = {
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadAllDocumentsZip(envelopeId: number, envelopeName: string): Promise<void> {
+    const { data } = await api.get(`/envelopes/${envelopeId}/documents/zip`, {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${envelopeName}.zip`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

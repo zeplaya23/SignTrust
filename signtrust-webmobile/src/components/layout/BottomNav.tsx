@@ -6,9 +6,18 @@ const items = [
     to: '/home',
     label: 'Accueil',
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 12L12 4l9 8" />
-        <path d="M5 10v10h14V10" />
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
+      </svg>
+    ),
+  },
+  {
+    to: '/envelopes/new',
+    label: 'Nouveau',
+    plus: true,
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 4v16M4 12h16" />
       </svg>
     ),
   },
@@ -16,28 +25,8 @@ const items = [
     to: '/envelopes',
     label: 'Enveloppes',
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="M3 7l9 7 9-7" />
-      </svg>
-    ),
-  },
-  {
-    to: '/envelopes/new',
-    label: 'Nouvelle',
-    plus: true,
-    icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    ),
-  },
-  {
-    to: '/activity',
-    label: 'Activité',
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 12h4l3-9 4 18 3-9h4" />
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
       </svg>
     ),
   },
@@ -45,9 +34,8 @@ const items = [
     to: '/settings',
     label: 'Profil',
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
     ),
   },
@@ -55,31 +43,35 @@ const items = [
 
 export default function BottomNav() {
   return (
-    <nav className="sticky bottom-0 z-30 bg-white safe-bottom">
-      <div className="grid grid-cols-5 h-16 items-center border-t border-line-soft px-1">
+    <nav className="sticky bottom-0 z-30 bg-white safe-bottom border-t border-line">
+      <div className="grid grid-cols-4 h-14 items-center">
         {items.map((it) => (
           <NavLink
             key={it.to}
             to={it.to}
+            end={it.to === '/home'}
             className={({ isActive }) =>
               clsx(
-                'flex flex-col items-center justify-center gap-0.5 h-full transition-colors',
+                'flex flex-col items-center justify-center gap-0.5 h-full',
                 it.plus
                   ? 'text-white'
                   : isActive
                     ? 'text-primary'
-                    : 'text-faint active:text-ink-soft',
+                    : 'text-faint',
               )
             }
           >
             {it.plus ? (
-              <span className="-mt-7 w-14 h-14 rounded-2xl bg-primary text-white shadow-md shadow-primary/30 flex items-center justify-center">
-                {it.icon}
-              </span>
+              <>
+                <span className="-mt-5 w-11 h-11 rounded-full bg-accent text-white shadow-lg shadow-accent/30 flex items-center justify-center">
+                  {it.icon}
+                </span>
+                <span className="text-[9px] text-muted font-semibold mt-0.5">{it.label}</span>
+              </>
             ) : (
               <>
                 {it.icon}
-                <span className="text-[10px] font-semibold">{it.label}</span>
+                <span className="text-[9px] font-semibold">{it.label}</span>
               </>
             )}
           </NavLink>

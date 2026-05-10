@@ -52,7 +52,9 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch {
         useAuthStore.getState().logout();
-        window.location.href = '/login';
+        // Respecte le basename Vite (/m/ en prod) pour rester côté webmobile
+        const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+        window.location.href = `${base}/login`;
         return Promise.reject(error);
       }
     }

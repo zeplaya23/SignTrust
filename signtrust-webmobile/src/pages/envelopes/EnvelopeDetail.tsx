@@ -8,6 +8,41 @@ import Sheet from '../../components/ui/Sheet';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { toast } from '../../components/ui/Toast';
+import PdfPreview from '../../components/document/PdfPreview';
+import PdfThumbnail from '../../components/document/PdfThumbnail';
+
+/** Traduit un action_type backend en libellé humain. */
+function translateAction(action: string): string {
+  const map: Record<string, string> = {
+    ENVELOPE_CREATED: 'Enveloppe créée',
+    ENVELOPE_UPDATED: 'Enveloppe modifiée',
+    ENVELOPE_SENT: 'Enveloppe envoyée',
+    ENVELOPE_COMPLETED: 'Enveloppe complète',
+    ENVELOPE_CANCELLED: 'Enveloppe annulée',
+    ENVELOPE_REJECTED: 'Enveloppe refusée',
+    ENVELOPE_EXPIRED: 'Enveloppe expirée',
+    DOCUMENT_ADDED: 'Document ajouté',
+    DOCUMENT_REMOVED: 'Document supprimé',
+    DOCUMENT_VIEWED: 'Document consulté',
+    SIGNATORY_ADDED: 'Signataire ajouté',
+    SIGNATORY_REMOVED: 'Signataire retiré',
+    SIGNATORY_SIGNED: 'Signature reçue',
+    SIGNATORY_REJECTED: 'Refus de signature',
+    SIGNATURE_INVITATION_SENT: 'Invitation envoyée',
+    SIGNATURE_REMINDER_SENT: 'Rappel envoyé',
+    OTP_SENT: 'Code OTP envoyé',
+    OTP_VERIFIED: 'Identité vérifiée',
+  };
+  return map[action] ?? action.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Couleur du marqueur dans la timeline en fonction de l'action. */
+function actionColor(action: string): string {
+  if (action.includes('SIGNED') || action.includes('COMPLETED') || action.includes('VERIFIED')) return '#177A4B';
+  if (action.includes('REJECTED') || action.includes('CANCELLED') || action.includes('EXPIRED')) return '#C0392B';
+  if (action.includes('SENT') || action.includes('INVITATION') || action.includes('REMINDER')) return '#0083BF';
+  return '#94A3B8';
+}
 import type { SignatoryRole } from '../../types/envelope';
 
 export default function EnvelopeDetail() {
@@ -16,6 +51,9 @@ export default function EnvelopeDetail() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [sheet, setSheet] = useState<null | 'addSignatory' | 'upload'>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ id: number; name: string } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const { data: env, isLoading } = useQuery({
     queryKey: ['envelope', envelopeId],
@@ -48,112 +86,266 @@ export default function EnvelopeDetail() {
     );
   }
 
+  const docCountLabel = env.documents.length
+    ? `${env.documents.length} PDF`
+    : 'Aucun';
+  const expiresLabel = env.expiresAt ? new Date(env.expiresAt).toLocaleDateString('fr-FR') : '—';
+
+  const downloadAll = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      if (env.documents.length === 1) {
+        await envelopeService.downloadDocument(envelopeId, env.documents[0].id, env.documents[0].name);
+      } else if (env.documents.length > 1) {
+        await envelopeService.downloadAllDocumentsZip(envelopeId, env.name);
+      } else {
+        toast('Aucun document à télécharger', 'error');
+      }
+    } catch {
+      toast('Échec du téléchargement', 'error');
+    } finally {
+      setDownloading(false);
+    }
+  };
+  const orderLabel = env.signingOrder === 'SEQUENTIAL' ? 'Séquentiel' : 'Parallèle';
+  const firstDoc = env.documents[0];
+
   return (
-    <div className="flex flex-col pb-32">
-      <TopBar
-        title={env.name}
-        back
-        right={<StatusBadge status={env.status} />}
-      />
+    <div className="bg-canvas min-h-[100dvh] pb-28">
+      <TopBar title={env.name} back right={<StatusBadge status={env.status} />} />
 
-      <section className="px-5 pt-4">
-        <div className="bg-white rounded-2xl p-4 border border-line-soft">
-          <p className="text-xs uppercase font-semibold text-muted">Message</p>
-          <p className="text-sm text-ink mt-1">{env.message || '—'}</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <p className="text-muted">Ordre</p>
-              <p className="font-medium text-ink">{env.signingOrder === 'SEQUENTIAL' ? 'Séquentiel' : 'Parallèle'}</p>
+      <div className="px-4 pt-4">
+        {/* Aperçu mini (style v2) — vraie 1ère page rendue, touche pour ouvrir en plein écran */}
+        <div className="mb-3.5">
+          {firstDoc ? (
+            <PdfThumbnail
+              envelopeId={env.id}
+              docId={firstDoc.id}
+              onClick={() => setPreviewDoc({ id: firstDoc.id, name: firstDoc.name })}
+            />
+          ) : (
+            <div className="w-full h-[220px] bg-[#F0F0F0] rounded-xl flex items-center justify-center">
+              <span className="text-[15px] text-muted">Aucun document</span>
             </div>
-            <div>
-              <p className="text-muted">Créée le</p>
-              <p className="font-medium text-ink">{new Date(env.createdAt).toLocaleDateString('fr-FR')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-5 mt-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base font-semibold text-ink">Documents</h2>
-          {env.status === 'DRAFT' && (
-            <button onClick={() => setSheet('upload')} className="text-sm text-primary font-medium">+ Ajouter</button>
           )}
         </div>
-        <div className="flex flex-col gap-2">
-          {env.documents.map((d) => (
-            <button
-              key={d.id}
-              onClick={() => envelopeService.downloadDocument(env.id, d.id, d.name)}
-              className="bg-white rounded-2xl p-4 border border-line-soft flex items-center gap-3 active:bg-line-soft text-left"
+
+        {/* Tableau métadonnées compact — uniquement l'essentiel */}
+        <div className="bg-white rounded-xl border border-line px-3.5 py-1 mb-3">
+          {([
+            ['Documents', docCountLabel],
+            ['Ordre', orderLabel],
+            ['Créée le', `${new Date(env.createdAt).toLocaleDateString('fr-FR')} à ${new Date(env.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`],
+            ...(env.expiresAt ? [['Expire le', expiresLabel] as [string, string]] : []),
+          ] as Array<[string, string]>).map(([k, v], i, arr) => (
+            <div
+              key={k}
+              className={`flex items-center justify-between gap-3 py-1.5 ${i < arr.length - 1 ? 'border-b border-line-soft' : ''}`}
             >
-              <span className="w-10 h-10 rounded-xl bg-primary-light text-primary flex items-center justify-center shrink-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <path d="M14 2v6h6" />
+              <span className="text-[15px] text-muted shrink-0">{k}</span>
+              <span className="text-[15px] font-medium text-ink text-right truncate max-w-[65%]">{v}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Destinataires — 1 ligne compacte par signataire */}
+        {env.signatories.length > 0 && (
+          <section className="mb-3">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <h2 className="text-[15px] font-bold text-ink">Destinataires ({env.signatories.length})</h2>
+              {env.status === 'DRAFT' && (
+                <button onClick={() => setSheet('addSignatory')} className="text-[15px] font-semibold text-primary">+ Ajouter</button>
+              )}
+            </div>
+            <div className="bg-white rounded-xl border border-line overflow-hidden">
+              {env.signatories.map((s, i, arr) => {
+                const ts = s.signedAt
+                  ? `Signé · ${new Date(s.signedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ${new Date(s.signedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                  : s.status === 'REJECTED'
+                    ? 'Refusé'
+                    : env.status === 'SENT'
+                      ? 'Invitation envoyée'
+                      : 'En attente';
+                const tsColor =
+                  s.status === 'SIGNED' ? 'text-success'
+                  : s.status === 'REJECTED' ? 'text-danger'
+                  : 'text-muted';
+                return (
+                  <div
+                    key={s.id}
+                    className={`px-3 py-2 flex items-center gap-2.5 ${i < arr.length - 1 ? 'border-b border-line-soft' : ''}`}
+                  >
+                    <span className="w-9 h-9 rounded-full bg-primary-light text-primary inline-flex items-center justify-center font-bold text-[13px] shrink-0">
+                      {s.firstName?.[0]}{s.lastName?.[0]}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-semibold text-ink truncate leading-tight">
+                        {s.firstName} {s.lastName}
+                        {env.signingOrder === 'SEQUENTIAL' && (
+                          <span className="text-[15px] text-faint font-normal ml-1.5">#{s.orderIndex}</span>
+                        )}
+                      </p>
+                      <p className="text-[15px] text-muted truncate">{s.email}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      <StatusBadge status={s.status} kind="signatory" />
+                      <span className={`text-[15px] ${tsColor}`}>{ts}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Historique — repliable */}
+        {env.auditTrail && env.auditTrail.length > 0 && (
+          <section className="mb-3">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((o) => !o)}
+              className="w-full bg-white rounded-xl border border-line px-3.5 py-2.5 flex items-center justify-between active:bg-line-soft"
+            >
+              <div className="flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
                 </svg>
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-ink truncate">{d.name}</p>
-                <p className="text-xs text-muted">{d.pageCount} page{d.pageCount > 1 ? 's' : ''}</p>
+                <span className="text-[15px] font-semibold text-ink-soft">
+                  Historique
+                  <span className="text-[15px] text-muted font-normal ml-1.5">({env.auditTrail.length} évènement{env.auditTrail.length > 1 ? 's' : ''})</span>
+                </span>
               </div>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-faint">
-                <path d="M9 18l6-6-6-6" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className={`text-muted transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+              >
+                <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
-          ))}
-          {!env.documents.length && <p className="text-center text-muted text-sm py-6">Aucun document.</p>}
-        </div>
-      </section>
-
-      <section className="px-5 mt-6">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base font-semibold text-ink">Signataires</h2>
-          {env.status === 'DRAFT' && (
-            <button onClick={() => setSheet('addSignatory')} className="text-sm text-primary font-medium">+ Ajouter</button>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          {env.signatories.map((s) => (
-            <div key={s.id} className="bg-white rounded-2xl p-4 border border-line-soft flex items-center gap-3">
-              <span className="w-10 h-10 rounded-full bg-line-soft flex items-center justify-center font-semibold text-muted shrink-0">
-                {s.firstName?.[0]}{s.lastName?.[0]}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-ink truncate">{s.firstName} {s.lastName}</p>
-                <p className="text-xs text-muted truncate">{s.email}</p>
+            {historyOpen && (
+              <div className="bg-white rounded-xl border border-line border-t-0 rounded-t-none px-3 pt-1 pb-3 -mt-px">
+                <ol className="relative">
+                  <span aria-hidden className="absolute left-[7px] top-3 bottom-2 w-px bg-line" />
+                  {[...env.auditTrail]
+                    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+                    .map((ev) => {
+                      const dt = new Date(ev.createdAt);
+                      const dateStr = dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+                      const timeStr = dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <li key={ev.id} className="relative pl-5 py-1.5">
+                          <span
+                            className="absolute left-0 top-[10px] w-[15px] h-[15px] rounded-full bg-white border-2 ring-1 ring-white"
+                            style={{ borderColor: actionColor(ev.action) }}
+                          />
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-[15px] font-semibold text-ink">{translateAction(ev.action)}</p>
+                            <span className="text-[15px] text-faint shrink-0">{dateStr} · {timeStr}</span>
+                          </div>
+                          {ev.details && (
+                            <p className="text-[15px] text-muted leading-snug mt-0.5">{ev.details}</p>
+                          )}
+                        </li>
+                      );
+                    })}
+                </ol>
               </div>
-              <StatusBadge status={s.status} kind="signatory" />
-            </div>
-          ))}
-          {!env.signatories.length && <p className="text-center text-muted text-sm py-6">Aucun signataire.</p>}
-        </div>
-      </section>
+            )}
+          </section>
+        )}
 
-      {/* Bottom action bar */}
-      {env.status === 'DRAFT' && (
-        <div className="fixed left-0 right-0 bottom-0 bg-white border-t border-line-soft px-5 py-3 safe-bottom z-20">
-          <div className="mobile-shell px-0 flex gap-2">
-            <Button variant="outline" fullWidth onClick={() => cancelMut.mutate()}>Annuler</Button>
-            <Button
-              fullWidth
-              size="lg"
-              onClick={() => sendMut.mutate()}
-              loading={sendMut.isPending}
-              disabled={!env.signatories.length || !env.documents.length}
+        {/* Multi-doc : liens d'accès aux autres PDF */}
+        {env.documents.length > 1 && (
+          <div className="bg-white rounded-xl border border-line overflow-hidden mb-3.5">
+            {env.documents.map((d, i, arr) => (
+              <button
+                key={d.id}
+                onClick={() => setPreviewDoc({ id: d.id, name: d.name })}
+                className={`w-full px-3.5 py-2.5 flex items-center gap-2.5 active:bg-line-soft text-left ${i < arr.length - 1 ? 'border-b border-line-soft' : ''}`}
+              >
+                <span className="w-7 h-7 rounded-md bg-primary-light text-primary inline-flex items-center justify-center shrink-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                </span>
+                <p className="text-[15px] font-medium text-ink truncate flex-1">{d.name}</p>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-faint">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Boutons d'édition légers (DRAFT) */}
+        {env.status === 'DRAFT' && (
+          <div className="grid grid-cols-2 gap-2 mb-3.5">
+            <button
+              onClick={() => setSheet('upload')}
+              className="h-12 rounded-lg bg-white border border-line text-[15px] font-semibold text-primary active:bg-primary-light inline-flex items-center justify-center gap-1.5"
             >
-              Envoyer
-            </Button>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Document
+            </button>
+            <button
+              onClick={() => setSheet('addSignatory')}
+              className="h-12 rounded-lg bg-white border border-line text-[15px] font-semibold text-primary active:bg-primary-light inline-flex items-center justify-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Signataire
+            </button>
           </div>
-        </div>
-      )}
-      {env.status === 'SENT' && (
-        <div className="fixed left-0 right-0 bottom-0 bg-white border-t border-line-soft px-5 py-3 safe-bottom z-20">
-          <div className="mobile-shell px-0">
-            <Button variant="danger" fullWidth onClick={() => cancelMut.mutate()}>Annuler l'envoi</Button>
-          </div>
-        </div>
-      )}
+        )}
+
+        {/* CTA principal — adapté au statut */}
+        {env.status === 'DRAFT' && (
+          <button
+            onClick={() => sendMut.mutate()}
+            disabled={!env.signatories.length || !env.documents.length || sendMut.isPending}
+            className="w-full h-14 rounded-xl bg-accent text-white font-bold text-[15px] disabled:opacity-50 active:translate-y-px transition-transform"
+          >
+            {sendMut.isPending ? 'Envoi…' : 'Envoyer pour signature'}
+          </button>
+        )}
+        {env.status === 'SENT' && (
+          <button
+            onClick={() => cancelMut.mutate()}
+            className="w-full h-14 rounded-xl bg-danger text-white font-bold text-[15px] shadow-md shadow-danger/30 active:translate-y-px transition-transform inline-flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 8l8 8M16 8l-8 8" />
+            </svg>
+            Annuler l'envoi
+          </button>
+        )}
+        {env.status === 'COMPLETED' && (
+          <button
+            onClick={downloadAll}
+            disabled={downloading || env.documents.length === 0}
+            className="w-full h-14 rounded-xl bg-success text-white font-bold text-[15px] disabled:opacity-50 active:translate-y-px transition-transform inline-flex items-center justify-center gap-2 shadow-md shadow-success/30"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 4v12" />
+              <path d="M6 10l6 6 6-6" />
+              <path d="M5 20h14" />
+            </svg>
+            {downloading ? 'Téléchargement…' : 'Télécharger le document signé'}
+          </button>
+        )}
+      </div>
 
       <Sheet open={sheet === 'addSignatory'} onClose={() => setSheet(null)} title="Nouveau signataire">
         <AddSignatoryForm envelopeId={env.id} onDone={() => { setSheet(null); qc.invalidateQueries({ queryKey: ['envelope', env.id] }); }} />
@@ -162,6 +354,16 @@ export default function EnvelopeDetail() {
       <Sheet open={sheet === 'upload'} onClose={() => setSheet(null)} title="Ajouter un document">
         <UploadForm envelopeId={env.id} onDone={() => { setSheet(null); qc.invalidateQueries({ queryKey: ['envelope', env.id] }); }} />
       </Sheet>
+
+      {previewDoc && (
+        <PdfPreview
+          envelopeId={env.id}
+          docId={previewDoc.id}
+          docName={previewDoc.name}
+          canDownload={env.status === 'COMPLETED'}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
 
       <button onClick={() => nav('/envelopes')} className="hidden">back</button>
     </div>

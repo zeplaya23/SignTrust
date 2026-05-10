@@ -14,7 +14,6 @@ import EnvelopeList from './pages/envelopes/EnvelopeList';
 import NewEnvelope from './pages/envelopes/NewEnvelope';
 import EnvelopeDetail from './pages/envelopes/EnvelopeDetail';
 
-import SignVerify from './pages/sign/SignVerify';
 import SignView from './pages/sign/SignView';
 import SignSuccess from './pages/sign/SignSuccess';
 
@@ -49,8 +48,10 @@ export default function App() {
           <Route path="/subscribe/success" element={<PaymentSuccess />} />
           <Route path="/renewal" element={<Renewal />} />
 
-          {/* Sign flow (signataire externe — non protégé) */}
-          <Route path="/sign/:token" element={<SignVerify />} />
+          {/* Sign flow (signataire externe — non protégé) :
+               le signataire arrive directement sur l'aperçu du document.
+               L'OTP n'apparaît que lorsqu'il valide sa signature. */}
+          <Route path="/sign/:token" element={<SignView />} />
           <Route path="/sign/:token/view" element={<SignView />} />
           <Route path="/sign/success" element={<SignSuccess />} />
 

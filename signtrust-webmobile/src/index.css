@@ -4,10 +4,11 @@
 @theme {
   --font-sans: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
 
-  /* Cryptoneo palette */
+  /* Cryptoneo palette + tokens v2 */
   --color-primary: #0083BF;
   --color-primary-light: #E6F4FB;
   --color-primary-dark: #006A99;
+
   --color-accent: #4E901F;
   --color-accent-light: #EEF6E8;
   --color-accent-dark: #3E7318;
@@ -18,6 +19,8 @@
   --color-danger-light: #FEF2F0;
   --color-warning: #B8860B;
   --color-warning-light: #FFFBEB;
+  --color-purple: #6C5CE7;
+  --color-purple-light: #F0EDFF;
 
   --color-ink: #0F172A;
   --color-ink-soft: #1A1D21;
@@ -27,7 +30,7 @@
   --color-line: #E8ECF1;
   --color-line-soft: #F1F5F9;
   --color-surface: #FFFFFF;
-  --color-canvas: #F4F7FA;
+  --color-canvas: #F8F9FA;
 }
 
 html, body, #root {
