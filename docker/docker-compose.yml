@@ -74,11 +74,16 @@ services:
       SIGNING_ORG: ${SIGNING_ORG:-Cryptoneo}
       SIGNING_COUNTRY: ${SIGNING_COUNTRY:-CI}
 
-      # ── Mail (Mailpit for dev) ──
-      QUARKUS_MAILER_HOST: signtrust-mailpit
-      QUARKUS_MAILER_PORT: 1025
-      QUARKUS_MAILER_START_TLS: DISABLED
-      QUARKUS_MAILER_FROM: noreply@signtrust.local
+      # ── Mail ──
+      # Defaults → Mailpit. Set SMTP_* vars in .env for real server.
+      SMTP_HOST: ${SMTP_HOST:-signtrust-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_FROM: ${SMTP_FROM:-noreply@signtrust.ci}
+      SMTP_START_TLS: ${SMTP_START_TLS:-DISABLED}
+      SMTP_LOGIN: ${SMTP_LOGIN:-DISABLED}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SSL: ${SMTP_SSL:-false}
     depends_on:
       - signtrust-minio
       - signtrust-mailpit
